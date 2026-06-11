@@ -1,547 +1,565 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Desktop Sandbox Multiplayer</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
-    body, html { width: 100%; height: 100%; overflow: hidden; background: #333; font-family: sans-serif; }
-    #desktop { width: 100%; height: 100%; position: relative; background: #1a1a1a; overflow: hidden; }
-    
-    /* Barra de Tarefas estilo Windows */
-    #taskbar {
-      position: absolute; bottom: 0; left: 0; width: 100%; height: 36px;
-      background: #222; border-top: 1px solid #444; display: flex; align-items: center; padding: 0 10px; z-index: 9999;
-    }
-    .start-btn { background: #0078d7; color: white; border: none; padding: 4px 12px; font-weight: bold; cursor: pointer; }
-    
-    /* Elementos do Sandbox */
-    .cursor-replica {
-      position: absolute; width: 14px; height: 14px;
-      background: radial-gradient(circle, red 0%, transparent 70%);
-      pointer-events: none; z-index: 9998; font-size: 10px; color: #fff; white-space: nowrap;
-    }
-    .cursor-label { position: absolute; top: 15px; left: 10px; background: rgba(0,0,0,0.6); padding: 2px 4px; border-radius: 3px; }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stickman Desktop - Multiplayer</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
 
-    .stickman-container { position: absolute; pointer-events: auto; cursor: grab; z-index: 100; display: flex; flex-direction: column; align-items: center; }
-    .stickman-container:active { cursor: grabbing; }
-    .speech-bubble {
-      background: white; border: 2px solid black; border-radius: 8px; padding: 4px 8px;
-      font-size: 12px; font-weight: bold; max-width: 150px; text-align: center; margin-bottom: 4px;
-      position: relative; word-wrap: break-word; color: black;
-    }
-    .hp-bar-bg { width: 100%; height: 5px; background: red; border: 1px solid #000; margin-top: 2px; }
-    .hp-bar-fill { height: 100%; background: #0f0; width: 100%; transition: width 0.1s ease; }
-    .stickman-name { font-size: 11px; color: white; background: rgba(0,0,0,0.5); padding: 1px 3px; border-radius: 3px; }
+  /* ── LOBBY ── */
+  #lobbyScreen {
+    position: fixed; inset: 0;
+    background: #0a0a12;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    font-family: 'Courier New', monospace;
+    color: #d3d3d3;
+    z-index: 999;
+  }
+  #lobbyScreen h1 {
+    font-size: 32px; color: #ffcc00;
+    text-transform: uppercase; letter-spacing: 4px;
+    text-shadow: 0 0 18px #ff990066;
+    margin-bottom: 6px;
+  }
+  #lobbyScreen p.sub { font-size: 12px; color: #666; margin-bottom: 30px; }
+  .lobby-box {
+    background: #141414;
+    border: 2px solid #ff9900;
+    box-shadow: 0 0 30px #ff990022;
+    padding: 30px; border-radius: 8px;
+    width: 340px; text-align: center;
+  }
+  .lobby-box input {
+    width: 100%; padding: 12px;
+    background: #0d0d0d; border: 1px solid #333;
+    color: #fff; font-family: monospace;
+    border-radius: 4px; margin-bottom: 15px;
+    text-align: center; outline: none;
+  }
+  .lobby-box input:focus { border-color: #ffcc00; }
+  .lobby-box button {
+    width: 100%; padding: 12px;
+    background: #ff9900; border: none;
+    color: #000; font-weight: bold;
+    font-family: monospace; font-size: 14px;
+    text-transform: uppercase; cursor: pointer;
+    border-radius: 4px; transition: 0.2s;
+  }
+  .lobby-box button:hover { background: #ffcc00; }
 
-    /* Janelas Falsas do Sistema */
-    .window {
-      position: absolute; width: 300px; height: 200px; background: #f0f0f0; border: 1px solid #666;
-      box-shadow: 2px 2px 10px rgba(0,0,0,0.5); display: none; flex-direction: column; z-index: 500;
-    }
-    .window-header { background: #0078d7; color: white; padding: 4px 8px; display: flex; justify-content: space-between; align-items: center; cursor: move; }
-    .window-close { background: red; color: white; border: none; width: 20px; height: 20px; cursor: pointer; }
-    .window-body { flex: 1; padding: 10px; overflow: auto; color: black; }
-  </style>
-</head>
-<body>
+  /* ── DESKTOP AREA ── */
+  #desktopArea {
+    position: fixed; inset: 0;
+    background: #008080; /* Clássico verde Windows XP */
+    overflow: hidden;
+    display: none;
+    user-select: none;
+  }
 
-<div id="desktop">
-  <div id="myCursor" style="position: absolute; display: none;"></div>
+  /* ── TASKBAR XP ── */
+  #xpTaskbar {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    height: 36px; background: linear-gradient(to bottom, #245edb 0%, #3f8cf3 9%, #1b52e3 18%, #174be6 57%, #1946d2 90%, #245edb 100%);
+    border-top: 1px solid #1a42b8;
+    z-index: 500; display: flex; align-items: center; justify-content: space-between;
+    padding: 0 10px; box-shadow: 0 -2px 5px rgba(0,0,0,0.3);
+  }
+  #xpStartBtn {
+    height: 30px; width: 85px;
+    background: linear-gradient(to bottom, #388a24 0%, #61bd46 10%, #3e962b 25%, #2a7319 60%, #1e5212 100%);
+    border: none; border-top-right-radius: 6px; border-bottom-right-radius: 6px;
+    box-shadow: 2px 2px 3px rgba(0,0,0,0.4);
+    color: #fff; font-family: 'Tahoma', sans-serif; font-weight: bold; font-style: italic;
+    font-size: 15px; text-shadow: 1px 1px 1px #000;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+  }
+  #xpStartBtn:hover { filter: brightness(1.1); }
+  #xpClock {
+    color: #fff; font-family: 'Tahoma', sans-serif; font-size: 12px;
+    background: linear-gradient(to bottom, #0972a9 0%, #1293d7 12%, #0a73aa 26%, #0d5985 65%, #053655 100%);
+    border-left: 1px solid #105986; height: 100%; display: flex; align-items: center;
+    padding: 0 15px; margin-right: -10px;
+  }
 
-  <div id="paintWindow" class="window" style="left: 40%; top: 30%;">
-    <div class="window-header" id="paintHeader">
-      <span>Paint Studio</span>
-      <button class="window-close" onclick="document.getElementById('paintWindow').style.display='none'">X</button>
-    </div>
-    <div class="window-body">
-      <p>Área de Colisão Sólida</p>
-      <canvas id="paintCanvas" width="280" height="130" style="border:1px dashed #999; background:white;"></canvas>
-    </div>
-  </div>
+  /* Menu Iniciar */
+  #xpStartMenu {
+    position: absolute; bottom: 36px; left: 0;
+    background: #2d6fc0; border: 2px solid #163d72;
+    color: #fff; font-family: 'Tahoma', sans-serif; font-size: 12px;
+    width: 180px; z-index: 600; box-shadow: 3px -3px 8px rgba(0,0,0,0.5);
+    display: none;
+  }
+  .start-menu-item {
+    padding: 10px 14px; cursor: pointer; border-bottom: 1px solid #23589b;
+  }
+  .start-menu-item:hover { background: #2567be; }
 
-  <div id="taskbar">
-    <button class="start-btn" id="spawnBtn">Injetar Stickman</button>
-    <button class="start-btn" style="background:#555; margin-left:5px;" onclick="document.getElementById('paintWindow').style.display='flex'">Abrir Janela</button>
-  </div>
-</div>
+  /* ── ELEMENTOS DE JOGO (STICKMANS / ITENS) ── */
+  .sandbox-entity {
+    position: absolute;
+    cursor: grab;
+    touch-action: none;
+    z-index: 100;
+    transform-origin: center;
+  }
+  .sandbox-entity:active { cursor: grabbing; }
+  .entity-img {
+    width: 100%; height: 100%;
+    object-fit: contain;
+    pointer-events: none;
+  }
+  .entity-label {
+    position: absolute; top: -18px; left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0,0,0,0.6); color: #ffcc00;
+    padding: 1px 6px; font-family: monospace; font-size: 10px;
+    border-radius: 3px; white-space: nowrap; pointer-events: none;
+  }
+
+  /* ── REMOTES MOUSES ── */
+  .remote-mouse {
+    position: absolute;
+    width: 14px; height: 20px;
+    background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white" stroke="black" stroke-width="2"><path d="M4.5 2v17.5l4.8-4.7 3.6 8.3 3.1-1.4-3.6-8.2 6.1-.5z"/></svg>') no-repeat;
+    pointer-events: none;
+    z-index: 9999;
+    font-family: monospace;
+    font-size: 11px;
+    color: white;
+    text-shadow: 1px 1px 2px black;
+    white-space: nowrap;
+    transition: transform 0.05s linear;
+  }
+
+  /* ── PAINT STUDIO WINDOW ── */
+  #paintWindow {
+    position: absolute; top: 50px; left: 50px;
+    width: 600px; height: 650px;
+    background: #f1f1f1; border: 3px solid #004eaf;
+    box-shadow: 5px 5px 15px rgba(0,0,0,0.3);
+    z-index: 800; display: none; flex-direction: column;
+    font-family: sans-serif;
+  }
+  .window-titlebar {
+    background: linear-gradient(to right, #0058e6 0%, #3a83ff 100%);
+    color: white; font-weight: bold; padding: 6px 10px;
+    display: flex; justify-content: space-between; align-items: center;
+    cursor: move;
+  }
+  .window-close {
+    background: #e81123; color: white; border: none;
+    width: 22px; height: 22px; font-weight: bold; cursor: pointer;
+  }
+  .window-content { flex: 1; display: flex; flex-direction: column; background: white; position: relative; }
+  iframe { border: none; width: 100%; height: 100%; }
+</style>
 
 <script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-  import { getDatabase, ref, set, push, onValue, update, remove, onChildAdded, onChildRemoved, onChildChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
+  import { getDatabase, ref, set, onValue, push, remove, update, onChildAdded, onChildRemoved, onChildChanged } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-database.js";
 
-  // Configuração padrão do Firebase Realtime Database
   const firebaseConfig = {
-    databaseURL: "https://SEU-FIREBASE-DATABASE-URL-AQUI.firebaseio.com" 
+    databaseURL: "https://stickland-3ccaa-default-rtdb.firebaseio.com"
   };
-  
+
   const app = initializeApp(firebaseConfig);
   const db = getDatabase(app);
 
-  // Variáveis Globais de Sessão Multiplayer
-  const roomId = "sandbox_main_room";
-  const myId = "usr_" + Math.random().toString(36).substr(2, 9);
-  const myNick = prompt("Digite seu Nickname para a Matrix:") || "User_" + Math.floor(Math.random() * 900);
-  
-  let roomRef = ref(db, `desktopRooms/${roomId}`);
-  let stickmans = {};
-  let cursors = {};
+  // Variáveis globais do sistema de sessão
+  let roomId = "";
+  let myId = "player_" + Math.random().toString(36).substring(2, 9);
+  let myName = "Jogador";
 
-  // Chaves de Comunicação da IA (Identidade Groq/Desktop_Sandbox)
-  const API_KEY = "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"; 
-  const API_URL = "https://api.groq.com/openai/v1/chat/completions";
+  // Estado Local de Simulação de Stickmans (Física Local sincronizada ou rodada em paralelo)
+  const localEntities = {};
+  const remoteMousesContainer = document.getElementById('desktopArea');
 
-  // ── FUNÇÃO CENTRAL DE INTEGRAÇÃO COGNITIVA (GROQ) ────────────────────────────────────────────────
-  async function askAi(systemPrompt, userPrompt, memoryCtx = [], temp = 0.85) {
-    const messages = [{ role: "system", content: systemPrompt }];
-    memoryCtx.slice(-6).forEach(mem => {
-      messages.push({ role: "user", content: mem.user });
-      if (mem.ai) messages.push({ role: "assistant", content: mem.ai });
-    });
-    messages.push({ role: "user", content: userPrompt });
+  // Configurações Globais de Física Exata do Python
+  const GRAVITY = 0.45;
+  const BOUNCE = -0.3;
+  const FRICTION = 0.98;
+  const SPRITE_SIZE = 120; // Tamanho igual ao Python
 
-    try {
-      const res = await fetch(API_URL, {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "llama-3.1-8b-instant", messages, temperature: temp })
-      });
-      const data = await res.json();
-      return data.choices[0].message.content.trim();
-    } catch (e) {
-      console.error("Erro na Matrix de Comunicação IA:", e);
-      return "...";
-    }
+  window.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('joinBtn').addEventListener('click', joinRoom);
+    document.getElementById('xpStartBtn').addEventListener('click', toggleStartMenu);
+    setupClock();
+    setupWindowDrag();
+  });
+
+  function setupClock() {
+    setInterval(() => {
+      const now = new Date();
+      document.getElementById('xpClock').textContent = now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+    }, 1000);
   }
 
-  // Avaliação Inicial Baseada no Nome do Stickman (Cópia exata da lógica Python)
-  async function evaluateSkillsAndPrompt(name) {
-    const evalPrompt = `Analise estritamente o peso e a imponência do nome '${name}' para um RPG de combate sandbox. 
-    1. Nome fraco/comum (ex: 'Bob'): hp baixo (10-50), todas skills false.
-    2. Nome mediano: hp 60-110, poucas skills true.
-    3. Nome de Boss/Deus (ex: 'Caine', 'God', 'Carlos IA'): hp massivo (150-500), múltiplos superpoderes destructivos.
-    Responda EXCLUSIVAMENTE em JSON válido, sem markdown: {"hp": 100, "fly": false, "laser": false, "fire": false, "speed": false}`;
-
-    const res = await askAi("Você é um balanceador rigid de atributos de jogos.", evalPrompt, [], 0.2);
-    try {
-      const match = res.match(/\{.*\}/s);
-      return JSON.parse(match[0]);
-    } catch {
-      return { hp: 100, fly: false, laser: false, fire: false, speed: false };
-    }
+  function toggleStartMenu() {
+    const menu = document.getElementById('xpStartMenu');
+    menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
   }
 
-  // ── REPLICAÇÃO DOS MOUSES (CORRIGIDO DEFINITIVAMENTE COM THROTTLE) ────────────────────────────────
-  function setupCursorTracking() {
-    const desktop = document.getElementById('desktop');
-    let lastUpdate = 0;
+  function joinRoom() {
+    const rInput = document.getElementById('roomInput').value.trim();
+    const nInput = document.getElementById('nameInput').value.trim();
 
-    desktop.addEventListener('mousemove', e => {
-      const now = Date.now();
-      // O Throttle limita o fluxo absurdo de escrita no Firebase para preservar sincronia
-      if (now - lastUpdate > 60) { 
-        lastUpdate = now;
-        const pctX = (e.clientX / window.innerWidth) * 100;
-        const pctY = (e.clientY / window.innerHeight) * 100;
-        
-        update(ref(db, `desktopRooms/${roomId}/cursors/${myId}`), {
-          x: pctX, y: pctY, nick: myNick, t: now
-        });
-      }
+    if(!rInput || !nInput) {
+      alert("Por favor, preencha a Sala e o seu Nome!");
+      return;
+    }
+
+    roomId = rInput;
+    myName = nInput;
+
+    document.getElementById('lobbyScreen').style.display = 'none';
+    document.getElementById('desktopArea').style.display = 'block';
+
+    // 1. Registrar presença do Player e configurar desconexão
+    const playerRef = ref(db, `desktopRooms/${roomId}/players/${myId}`);
+    set(playerRef, {
+      name: myName,
+      active: true,
+      x: 0,
+      y: 0
     });
-
-    // Limpeza de mouses inativos (Desconexão)
+    
+    // Configura remoção automática ao fechar a aba
     window.addEventListener('beforeunload', () => {
-      remove(ref(db, `desktopRooms/${roomId}/cursors/${myId}`));
+      set(ref(db, `desktopRooms/${roomId}/players/${myId}`), null);
     });
+
+    // 2. Escutar mouses da sala (REPLICATE MOUSES CORRIGIDO)
+    listenMouses();
+
+    // 3. Rastrear movimento do mouse do jogador local
+    window.addEventListener('mousemove', (e) => {
+      update(ref(db, `desktopRooms/${roomId}/players/${myId}`), {
+        x: e.clientX,
+        y: e.clientY
+      });
+    });
+
+    // 4. Escutar criações de Stickmans/Itens na Sala do Firebase
+    listenItems();
+
+    // 5. Iniciar Loop de Física Idêntico ao Python
+    setInterval(updatePhysicsLoop, 20); // ~50 FPS constante
   }
 
-  // Ouvinte de Cursores Remotos
-  onValue(ref(db, `desktopRooms/${roomId}/cursors`), snapshot => {
-    const data = snapshot.val() || {};
-    const desktop = document.getElementById('desktop');
+  // CORREÇÃO E IMPLEMENTAÇÃO DO MOUSE REPLICATION
+  function listenMouses() {
+    const playersRef = ref(db, `desktopRooms/${roomId}/players`);
     
-    // Remover antigos
-    Object.keys(cursors).forEach(id => {
-      if (!data[id] || id === myId) {
-        cursors[id]?.remove();
-        delete cursors[id];
-      }
-    });
-
-    // Atualizar / Adicionar
-    Object.keys(data).forEach(id => {
-      if (id === myId) return;
-      const cData = data[id];
+    onValue(playersRef, (snapshot) => {
+      const playersData = snapshot.val() || {};
       
-      let cEl = cursors[id];
-      if (!cEl) {
-        cEl = document.createElement('div');
-        cEl.className = 'cursor-replica';
-        cEl.innerHTML = `<div class="cursor-label">${cData.nick}</div>`;
-        desktop.appendChild(cEl);
-        cursors[id] = cEl;
-      }
-      
-      const realX = (cData.x / 100) * window.innerWidth;
-      const realY = (cData.y / 100) * window.innerHeight;
-      cEl.style.left = realX + 'px';
-      cEl.style.top = realY + 'px';
-    });
-  });
-
-  // ── INJEÇÃO E INICIALIZAÇÃO DE STICKMANS ─────────────────────────────────────────────────────────
-  function injectItem(name) {
-    const x = Math.random() * (window.innerWidth - 100);
-    const y = 50;
-
-    // Canvas básico temporário gerando a silhueta clássica de Stickman do Sandbox
-    const tempCanvas = document.createElement('canvas');
-    tempCanvas.width = 60; tempCanvas.height = 60;
-    const tCtx = tempCanvas.getContext('2d');
-    tCtx.strokeStyle = "white"; tCtx.lineWidth = 3;
-    // Cabeça
-    tCtx.beginPath(); tCtx.arc(30, 15, 8, 0, Math.PI * 2); tCtx.stroke();
-    // Corpo
-    tCtx.beginPath(); tCtx.moveTo(30, 23); tCtx.lineTo(30, 42); tCtx.stroke();
-    // Braços
-    tCtx.beginPath(); tCtx.moveTo(15, 28); tCtx.lineTo(45, 28); tCtx.stroke();
-    // Pernas
-    tCtx.beginPath(); tCtx.moveTo(30, 42); tCtx.lineTo(15, 58); tCtx.moveTo(30, 42); tCtx.lineTo(45, 58); tCtx.stroke();
-
-    const dataUrl = tempCanvas.toDataURL();
-
-    const payload = {
-      action: "stickman", name, x, y, w: 60, h: 60,
-      dataUrl, creator: myNick,
-      hp: 100, max_hp: 100,
-      pontos_espirito: 1000,
-      alignment: "Caótico",
-      traumas: { mouse: 0, user_delet: 0, window: 0, rivals: 0, weapons: 0 },
-      skills: { fly: false, speed: false, laser: false, fire: false },
-      speech: "Instanciando consciência...",
-      timestamp: Date.now()
-    };
-
-    const newRef = push(ref(db, `desktopRooms/${roomId}/items`));
-    set(newRef, payload);
-
-    // Avalia o nome assincronamente e sobrescreve com as propriedades reais calculadas pela IA
-    evaluateSkillsAndPrompt(name).then(stats => {
-      let alignment = "Pacífico";
-      const nLow = name.toLowerCase();
-      if (["god", "boss", "evil", "caine", "carlos ia", "hacker"].some(v => nLow.includes(v))) {
-        alignment = "Destrutor";
-      } else {
-        alignment = ["Pacífico", "Caótico", "Hostil"][Math.floor(Math.random() * 3)];
-      }
-
-      update(ref(db, `desktopRooms/${roomId}/items/${newRef.key}`), {
-        hp: stats.hp || 100,
-        max_hp: stats.hp || 100,
-        skills: stats,
-        alignment: alignment,
-        speech: `Eu sou ${name}. Categoria: ${alignment}.`
+      // Remover cursores de quem saiu ou está inativo
+      const currentElements = document.querySelectorAll('.remote-mouse');
+      currentElements.forEach(el => {
+        const id = el.getAttribute('data-id');
+        if (!playersData[id] || id === myId) {
+          el.remove();
+        }
       });
 
-      setTimeout(() => update(ref(db, `desktopRooms/${roomId}/items/${newRef.key}`), { speech: "" }), 3500);
-    });
-  }
-
-  document.getElementById('spawnBtn').addEventListener('click', () => {
-    const nome = prompt("Nome do Stickman para análise de poder:");
-    if (nome) injectItem(nome);
-  });
-
-  // ── GERENCIAMENTO DA FILA VISUAL NO DOM ──────────────────────────────────────────────────────────
-  onChildAdded(ref(db, `desktopRooms/${roomId}/items`), snapshot => {
-    const fbKey = snapshot.key;
-    const data = snapshot.val();
-    createStickmanVisual(fbKey, data);
-  });
-
-  onChildChanged(ref(db, `desktopRooms/${roomId}/items`), snapshot => {
-    const fbKey = snapshot.key;
-    const data = snapshot.val();
-    const sm = stickmans[fbKey];
-    if (sm) {
-      sm.data = data;
-      // Sincroniza balão de fala
-      const speechBubble = sm.el.querySelector('.speech-bubble');
-      if (data.speech) {
-        speechBubble.style.display = 'block';
-        speechBubble.innerText = data.speech;
-      } else {
-        speechBubble.style.display = 'none';
-      }
-      // Sincroniza barra de vida
-      const hpFill = sm.el.querySelector('.hp-bar-fill');
-      const pct = (data.hp / data.max_hp) * 100;
-      hpFill.style.width = Math.max(0, pct) + "%";
-    }
-  });
-
-  onChildRemoved(ref(db, `desktopRooms/${roomId}/items`), snapshot => {
-    const fbKey = snapshot.key;
-    if (stickmans[fbKey]) {
-      stickmans[fbKey].el.remove();
-      delete stickmans[fbKey];
-    }
-  });
-
-  function createStickmanVisual(fbKey, data) {
-    const desktop = document.getElementById('desktop');
-    const container = document.createElement('div');
-    container.className = 'stickman-container';
-    container.style.left = data.x + 'px';
-    container.style.top = data.y + 'px';
-
-    container.innerHTML = `
-      <div class="speech-bubble" style="display: ${data.speech ? 'block' : 'none'}">${data.speech || ''}</div>
-      <canvas class="smCanvas" width="${data.w}" height="${data.h}"></canvas>
-      <div class="stickman-name">${data.name}</div>
-      <div class="hp-bar-bg"><div class="hp-bar-fill"></div></div>
-    `;
-
-    desktop.appendChild(container);
-
-    const canvas = container.querySelector('.smCanvas');
-    const img = new Image();
-    img.src = data.dataUrl;
-    img.onload = () => {
-      canvas.getContext('2d').drawImage(img, 0, 0, data.w, data.h);
-    };
-
-    stickmans[fbKey] = {
-      el: container,
-      cnv: canvas,
-      fbKey: fbKey,
-      data: data,
-      readyImg: img,
-      vx: 0, vy: 0,
-      targetX: data.x,
-      lastDecision: 0,
-      frame: Math.floor(Math.random() * 100),
-      dragging: false
-    };
-
-    // Evento de arrastar nativo para interações físicas do Usuário
-    container.addEventListener('mousedown', e => {
-      stickmans[fbKey].dragging = true;
-      let shiftX = e.clientX - container.getBoundingClientRect().left;
-      let shiftY = e.clientY - container.getBoundingClientRect().top;
-
-      function moveAt(pageX, pageY) {
-        container.style.left = (pageX - shiftX) + 'px';
-        container.style.top = (pageY - shiftY) + 'px';
-      }
-
-      function onMouseMove(ev) {
-        moveAt(ev.clientX, ev.clientY);
-      }
-
-      document.addEventListener('mousemove', onMouseMove);
-
-      document.addEventListener('mouseup', () => {
-        document.removeEventListener('mousemove', onMouseMove);
-        if (stickmans[fbKey]) {
-          stickmans[fbKey].dragging = false;
-          stickmans[fbKey].targetX = parseFloat(container.style.left);
-          // Incrementa trauma por manipulação do mouse
-          const tMouse = (stickmans[fbKey].data.traumas?.mouse || 0) + 1;
-          update(ref(db, `desktopRooms/${roomId}/items/${fbKey}`), {
-            x: parseFloat(container.style.left),
-            y: parseFloat(container.style.top),
-            "traumas/mouse": tMouse
-          });
-        }
-      }, { once: true });
-    });
-  }
-
-  // ── O MOTOR DE FÍSICA E INTELIGÊNCIA ARTIFICIAL COMPLETO (IDENTICO AO DESKTOP_SANDBOX) ───────────
-  const gravity = 0.85;
-
-  function physicsLoop() {
-    const now = Date.now();
-    const dw = window.innerWidth;
-    const dh = window.innerHeight - 36; // Compensação da Barra de Tarefas
-
-    Object.values(stickmans).forEach(sm => {
-      if (sm.dragging) return;
-
-      const stats = sm.data;
-      if (!stats || stats.hp <= 0) return;
-
-      let curX = parseFloat(sm.el.style.left) || stats.x;
-      let curY = parseFloat(sm.el.style.top) || stats.y;
-
-      // Fatores modificadores de Poder das Skills Calculadas
-      const speedFactor = stats.skills?.speed ? 2.8 : 1.0;
-      const thinkTime = stats.skills?.speed ? 700 : 2200;
-
-      // ── MÓDULO COGNITIVO AUTÔNOMO ──
-      if (now - sm.lastDecision > thinkTime) {
-        sm.lastDecision = now;
-
-        // Decisão de movimentação horizontal errática
-        if (Math.random() > 0.25) {
-          sm.targetX = Math.random() * (dw - stats.w);
-        }
-
-        // Impulso de Pulo Autônomo baseado no vetor Y (se no solo e sem skill de voo)
-        if (Math.random() > 0.68 && sm.vy === 0 && !stats.skills?.fly) {
-          sm.vy = -(Math.random() * 6 + 11);
-        }
-
-        // Execução da fala da IA - Apenas o Dono/Criador original processa para evitar spam de API na sala
-        if (stats.creator === myNick && Math.random() > 0.85) {
-          const prompt = `Você é o stickman autônomo '${stats.name}' operando em uma Matrix Desktop. Alinhamento: ${stats.alignment}. Sanidade Espiritual: ${stats.pontos_espirito}/1000. Traumas acumulados do Mouse: ${stats.traumas?.mouse || 0}. Diga uma frase de efeito curta, irônica ou insana condizente com seu estado (MÁXIMO 6 PALAVRAS).`;
-          askAi(prompt, "Manifeste-se.").then(res => {
-            update(ref(db, `desktopRooms/${roomId}/items/${sm.fbKey}`), { speech: res });
-            setTimeout(() => {
-              if (stickmans[sm.fbKey]) update(ref(db, `desktopRooms/${roomId}/items/${sm.fbKey}`), { speech: "" });
-            }, 4000);
-          });
-        }
-      }
-
-      // ── VETORES DE DESLOCAMENTO ──
-      sm.vx += (curX < sm.targetX ? 0.70 : -0.70) * speedFactor;
-      sm.vx *= 0.84; // Coeficiente de atrito/desaceleração horizontal
-      curX += sm.vx;
-
-      if (stats.skills?.fly) {
-        // Se voa, o vetor Y oscila flutuando na metade superior da tela
-        sm.vy += (curY < (dh / 2.5) ? 0.35 : -0.35) * speedFactor;
-        sm.vy *= 0.88;
-      } else {
-        // Se não voa, aplica a aceleração de gravidade idêntica ao Pygame
-        sm.vy += gravity;
-      }
-      curY += sm.vy;
-
-      // ── SISTEMA SÓLIDO DE COLISÃO COM JANELAS (Eixo X/Y) ──
-      let currentFloor = dh;
-      const paintWin = document.getElementById('paintWindow');
-      
-      if (paintWin && paintWin.style.display !== 'none') {
-        const px = paintWin.offsetLeft;
-        const py = paintWin.offsetTop;
-        const pw = paintWin.offsetWidth;
+      // Desenhar ou atualizar mouses ativos dos outros players
+      for (let pId in playersData) {
+        if (pId === myId) continue; // Ignora o próprio mouse
         
-        // Verifica se a base/pés do stickman está alinhada horizontalmente com a estrutura da janela
-        if (curX + (stats.w / 2) >= px && curX + (stats.w / 2) <= px + pw) {
-          // Detecta colisão de queda no topo da janela do Paint Studio
-          if (curY + stats.h <= py + 22 && sm.vy >= 0 && (curY + stats.h + sm.vy) >= py) {
-            currentFloor = py;
+        let mouseEl = document.querySelector(`.remote-mouse[data-id="${pId}"]`);
+        if (!mouseEl) {
+          mouseEl = document.createElement('div');
+          mouseEl.className = 'remote-mouse';
+          mouseEl.setAttribute('data-id', pId);
+          remoteMousesContainer.appendChild(mouseEl);
+        }
+        
+        // Atualiza a posição na tela e coloca o nome do jogador do lado
+        mouseEl.style.left = playersData[pId].x + 'px';
+        mouseEl.style.top = playersData[pId].y + 'px';
+        mouseEl.innerHTML = `&nbsp;&nbsp;&nbsp;&nbsp;${playersData[pId].name || 'Jogador'}`;
+      }
+    });
+  }
+
+  // ESCUTAR E RENDERIZAR ITENS/STICKMANS DO BANCO DE DADOS
+  function listenItems() {
+    const itemsRef = ref(db, `desktopRooms/${roomId}/items`);
+
+    onChildAdded(itemsRef, (snapshot) => {
+      const id = snapshot.key;
+      const data = snapshot.val();
+      createEntityElement(id, data);
+    });
+
+    onChildRemoved(itemsRef, (snapshot) => {
+      const id = snapshot.key;
+      if (localEntities[id]) {
+        localEntities[id].element.remove();
+        delete localEntities[id];
+      }
+    });
+
+    onChildChanged(itemsRef, (snapshot) => {
+      const id = snapshot.key;
+      const data = snapshot.val();
+      if (localEntities[id] && localEntities[id].dragging) {
+        // Se outro jogador estiver arrastando, sincroniza posição na tela
+        localEntities[id].x = data.x;
+        localEntities[id].y = data.y;
+        localEntities[id].element.style.left = data.x + 'px';
+        localEntities[id].element.style.top = data.y + 'px';
+      }
+    });
+  }
+
+  // CRIAÇÃO DOS STICKMANS COM ATRIBUTOS IDÊNTICOS DO PYTHON
+  function createEntityElement(id, data) {
+    const el = document.createElement('div');
+    el.className = 'sandbox-entity';
+    el.style.width = SPRITE_SIZE + 'px';
+    el.style.height = SPRITE_SIZE + 'px';
+    el.style.left = (data.x || 100) + 'px';
+    el.style.top = (data.y || 100) + 'px';
+
+    const img = document.createElement('img');
+    img.className = 'entity-img';
+    // Se tiver imagem base64 injetada pelo paint_studio usa ela, se não usa a padrão
+    img.src = data.image_b64 ? `data:image/png;base64,${data.image_b64}` : (data.image_path || 'https://i.imgur.com/w9O79G4.png');
+    el.appendChild(img);
+
+    if (data.name) {
+      const label = document.createElement('div');
+      label.className = 'entity-label';
+      label.textContent = data.name;
+      el.appendChild(label);
+    }
+
+    document.getElementById('desktopArea').appendChild(el);
+
+    // Estrutura de inteligência, gravidade e habilidades IDÊNTICAS do Python
+    localEntities[id] = {
+      id: id,
+      element: el,
+      type: data.action || 'stickman',
+      name: data.name || '',
+      x: data.x || 100,
+      y: data.y || 100,
+      vx: (Math.random() * 6) - 3, // Velocidade inicial aleatória x
+      vy: 0,                       // Velocidade inicial y
+      dragging: false,
+      // Habilidades/Poderes carregados (Ex: velocidade, passiva)
+      skills: {
+        speed: Math.random() < 0.25, // 25% de chance de ser super veloz igual no Python
+        climer: Math.random() < 0.15
+      },
+      // Estados internos do Loop de IA Python
+      aiTimer: 0,
+      aiState: 'idle'
+    };
+
+    // Implementação de Drag & Drop (Arrastar com o mouse) sincronizado
+    el.addEventListener('mousedown', (e) => {
+      localEntities[id].dragging = true;
+      localEntities[id].vx = 0;
+      localEntities[id].vy = 0;
+      
+      const offsetX = e.clientX - localEntities[id].x;
+      const offsetY = e.clientY - localEntities[id].y;
+
+      function onMouseMove(moveEvent) {
+        if (!localEntities[id].dragging) return;
+        let nx = moveEvent.clientX - offsetX;
+        let ny = moveEvent.clientY - offsetY;
+
+        localEntities[id].x = nx;
+        localEntities[id].y = ny;
+        el.style.left = nx + 'px';
+        el.style.top = ny + 'px';
+
+        // Atualizar no Firebase em tempo real para os outros verem arrastando
+        update(ref(db, `desktopRooms/${roomId}/items/${id}`), { x: nx, y: ny });
+      }
+
+      function onMouseUp() {
+        localEntities[id].dragging = false;
+        window.removeEventListener('mousemove', onMouseMove);
+        window.removeEventListener('mouseup', onMouseUp);
+      }
+
+      window.addEventListener('mousemove', onMouseMove);
+      window.addEventListener('mouseup', onMouseUp);
+    });
+  }
+
+  // LOOP DE FÍSICA E INTELIGÊNCIA ARTIFICIAL IDÊNTICO AO DESKTOP_SANDBOX.PY
+  function updatePhysicsLoop() {
+    const screenW = window.innerWidth;
+    const screenH = window.innerHeight - 36; // Desconta a barra de tarefas
+
+    for (let id in localEntities) {
+      const ent = localEntities[id];
+      if (ent.dragging) continue; // Se estiver sendo arrastado, a física não atua
+
+      // ── 1. APLICAÇÃO DE GRAVIDADE EXATA ──
+      ent.vy += GRAVITY;
+      ent.x += ent.vx;
+      ent.y += ent.vy;
+
+      // ── 2. INTELIGÊNCIA ARTIFICIAL (IA) E MUDANÇA DE ESTADOS ──
+      if (ent.type === 'stickman') {
+        ent.aiTimer++;
+        
+        // A cada certo tempo (Equivalente ao random.uniform do Python) muda o foco
+        if (ent.aiTimer > (ent.skills.speed ? 40 : 80)) {
+          ent.aiTimer = 0;
+          const r = Math.random();
+          if (r < 0.4) {
+            ent.aiState = 'walk_left';
+            ent.vx = ent.skills.speed ? -4.5 : -1.8; // Velocidade baseada na skill igual Python
+            ent.element.style.transform = 'scaleX(-1)'; // Olha para a esquerda
+          } else if (r < 0.8) {
+            ent.aiState = 'walk_right';
+            ent.vx = ent.skills.speed ? 4.5 : 1.8;  // Olha para a direita
+            ent.element.style.transform = 'scaleX(1)';
+          } else {
+            ent.aiState = 'idle';
+            ent.vx = 0;
           }
         }
       }
 
-      // Trava de solo/piso
-      if (curY + stats.h >= currentFloor) {
-        curY = currentFloor - stats.h;
-        sm.vy = 0;
+      // Atrito com o Ar / Chão
+      ent.vx *= FRICTION;
+
+      // ── 3. COLISÕES COM AS BORDAS DA TELA (PISO, TETO E LATERAIS) ──
+      // Colisão Piso (Chão da tela / Cima da Taskbar)
+      if (ent.y + SPRITE_SIZE >= screenH) {
+        ent.y = screenH - SPRITE_SIZE;
+        ent.vy = ent.vy * BOUNCE; // Quica baseado no BOUNCE do Python
+        
+        // Se o impacto do quique for muito baixo, para de quicar
+        if (Math.abs(ent.vy) < 1) ent.vy = 0;
       }
 
-      // Restrições de bordas laterais do monitor
-      if (curX < 0) { curX = 0; sm.vx *= -0.5; }
-      if (curX > dw - stats.w) { curX = dw - stats.w; sm.vx *= -0.5; }
-
-      // Atualiza a posição em tempo real no DOM local
-      sm.el.style.left = curX + 'px';
-      sm.el.style.top = curY + 'px';
-
-      // Espelhamento visual com base na direção do vetor velocidade
-      if (sm.vx < -0.2) sm.cnv.style.transform = 'scaleX(-1)';
-      else if (sm.vx > 0.2) sm.cnv.style.transform = 'scaleX(1)';
-
-      // Animação procedural interna (Bobbing/Balanço de movimento)
-      sm.frame++;
-      const sCtx = sm.cnv.getContext('2d');
-      sCtx.clearRect(0, 0, stats.w, stats.h);
-      if (sm.readyImg) {
-        const bob = (sm.vy === 0 && Math.abs(sm.vx) > 0.5) ? Math.sin(sm.frame * 0.25) * 3.5 : 0;
-        sCtx.drawImage(sm.readyImg, 0, bob, stats.w, stats.h);
+      // Colisão Teto
+      if (ent.y < 0) {
+        ent.y = 0;
+        ent.vy = 0;
       }
 
-      // ── MOTOR DE COMBATE E HITBOX (Sincronizado via Criador para balanceamento de rede) ──
-      if (stats.creator === myNick && sm.frame % 12 === 0) {
-        update(ref(db, `desktopRooms/${roomId}/items/${sm.fbKey}`), { x: curX, y: curY });
-
-        Object.values(stickmans).forEach(other => {
-          if (other.fbKey === sm.fbKey) return; // Evitar autoflagelo
-
-          const ox = parseFloat(other.el.style.left);
-          const oy = parseFloat(other.el.style.top);
-          const dist = Math.hypot(curX - ox, curY - oy);
-
-          // Alcance de agressividade padrão do sandbox
-          if (dist < 90 && stats.alignment !== "Pacífico") {
-            if (Math.random() < 0.15) { // Probabilidade de ataque ativo por frame processado
-              let dmg = 6;
-              let attackColor = "rgba(255, 255, 255, 0.8)";
-
-              if (stats.skills?.laser) { dmg = 15; attackColor = "#00ffff"; }
-              else if (stats.skills?.fire) { dmg = 10; attackColor = "#ffaa00"; }
-
-              const finalHp = Math.max(0, (other.data.hp || 100) - dmg);
-              
-              // Atualiza o estado no Firebase
-              update(ref(db, `desktopRooms/${roomId}/items/${other.fbKey}`), { hp: finalHp });
-
-              // Renderização do feixe de dano visual (Hitbox visível) via DOM
-              const fx = document.createElement('div');
-              fx.style.cssText = `position:absolute; left:${curX + (stats.w / 2)}px; top:${curY + (stats.h / 2)}px; width:${dist}px; height:3px; background:${attackColor}; transform-origin: left center; z-index: 1000; pointer-events: none; box-shadow: 0 0 6px ${attackColor};`;
-              const angle = Math.atan2(oy - curY, ox - curX) * 180 / Math.PI;
-              fx.style.transform = `rotate(${angle}deg)`;
-              document.getElementById('desktop').appendChild(fx);
-              setTimeout(() => fx.remove(), 120);
-
-              // Eliminação se zerar a vida útil
-              if (finalHp <= 0) {
-                remove(ref(db, `desktopRooms/${roomId}/items/${other.fbKey}`));
-              }
-            }
-          }
-        });
+      // Colisão Lateral Esquerda
+      if (ent.x < 0) {
+        ent.x = 0;
+        ent.vx = -ent.vx * 0.6; // Inverte o sentido do movimento
+        if (ent.aiState === 'walk_left') {
+          ent.aiState = 'walk_right';
+          ent.element.style.transform = 'scaleX(1)';
+        }
       }
+
+      // Colisão Lateral Direita
+      if (ent.x + SPRITE_SIZE > screenW) {
+        ent.x = screenW - SPRITE_SIZE;
+        ent.vx = -ent.vx * 0.6;
+        if (ent.aiState === 'walk_right') {
+          ent.aiState = 'walk_left';
+          ent.element.style.transform = 'scaleX(-1)';
+        }
+      }
+
+      // ── 4. ATUALIZAR ELEMENTO NA TELA HTML ──
+      ent.element.style.left = ent.x + 'px';
+      ent.element.style.top = ent.y + 'px';
+    }
+  }
+
+  // ── GERENCIAMENTO DA JANELA DO PAINT STUDIO ──
+  window.openPaintStudio = function() {
+    const win = document.getElementById('paintWindow');
+    win.style.display = 'flex';
+    toggleStartMenu(); // Fecha o menu iniciar ao abrir
+  };
+
+  window.closePaintStudio = function() {
+    document.getElementById('paintWindow').style.display = 'none';
+  };
+
+  window.clearDesktopRoom = function() {
+    if (confirm('Remover todos os itens e Stickmans desta sala?')) {
+      remove(ref(db, `desktopRooms/${roomId}/items`));
+      toggleStartMenu();
+    }
+  };
+
+  window.leaveDesktopRoom = function() {
+    set(ref(db, `desktopRooms/${roomId}/players/${myId}`), null);
+    location.reload();
+  };
+
+  function setupWindowDrag() {
+    const titlebar = document.querySelector('.window-titlebar');
+    const win = document.getElementById('paintWindow');
+    let isDraggingWin = false;
+    let offsetWinX, offsetWinY;
+
+    titlebar.addEventListener('mousedown', (e) => {
+      if(e.target.className === 'window-close') return;
+      isDraggingWin = true;
+      offsetWinX = e.clientX - win.offsetLeft;
+      offsetWinY = e.clientY - win.offsetTop;
     });
 
-    requestAnimationFrame(physicsLoop);
+    window.addEventListener('mousemove', (e) => {
+      if (!isDraggingWin) return;
+      win.style.left = (e.clientX - offsetWinX) + 'px';
+      win.style.top = (e.clientY - offsetWinY) + 'px';
+    });
+
+    window.addEventListener('mouseup', () => {
+      isDraggingWin = false;
+    });
   }
-
-  // ── INICIALIZADORES DO SISTEMA ──
-  setupCursorTracking();
-  // Inicializa o laço físico principal de renderização
-  requestAnimationFrame(physicsLoop);
-
-  // Drag funcional para as Janelas Falsas do Monitor
-  function makeWindowDraggable(winId, headerId) {
-    const win = document.getElementById(winId);
-    const header = document.getElementById(headerId);
-    let x = 0, y = 0, nx = 0, ny = 0;
-    
-    header.onmousedown = e => {
-      e.preventDefault();
-      x = e.clientX; y = e.clientY;
-      document.onmousemove = ev => {
-        ev.preventDefault();
-        nx = x - ev.clientX; ny = y - ev.clientY;
-        x = ev.clientX; y = ev.clientY;
-        win.style.top = (win.offsetTop - ny) + "px";
-        win.style.left = (win.offsetLeft - nx) + "px";
-      };
-      document.onmouseup = () => {
-        document.onmousemove = null;
-        document.onmouseup = null;
-      };
-    };
-  }
-  makeWindowDraggable('paintWindow', 'paintHeader');
-
 </script>
+</head>
+<body>
+
+  <div id="lobbyScreen">
+    <h1>Stickman Sandbox</h1>
+    <p class="sub">Multiplayer Desktop Engine</p>
+    <div class="lobby-box">
+      <input type="text" id="roomInput" placeholder="Código da Sala (Ex: sala1)" value="sala1">
+      <input type="text" id="nameInput" placeholder="Seu Nome/Nickname">
+      <button id="joinBtn">Entrar na Sala</button>
+    </div>
+  </div>
+
+  <div id="desktopArea">
+    
+    <div id="paintWindow">
+      <div class="window-titlebar">
+        <span>🎨 Estúdio de Criação Paint</span>
+        <button class="window-close" onclick="closePaintStudio()">X</button>
+      </div>
+      <div class="window-content">
+        <iframe src="paint_studio.html"></iframe>
+      </div>
+    </div>
+
+    <div id="xpTaskbar">
+      <button id="xpStartBtn">Iniciar</button>
+      <div id="xpClock">00:00</div>
+    </div>
+
+    <div id="xpStartMenu">
+      <div class="start-menu-item" onclick="openPaintStudio()">🎨 Abrir Paint Studio</div>
+      <div class="start-menu-item" onclick="clearDesktopRoom()">🗑 Limpar Sala (Reset)</div>
+      <div class="start-menu-item" onclick="leaveDesktopRoom()">🚪 Sair da Sala</div>
+    </div>
+
+  </div>
+
 </body>
 </html>
