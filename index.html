@@ -6,6 +6,7 @@
 <title>Stickman Desktop - Multiplayer</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { cursor: none; }
 
   /* ── LOBBY ── */
   #lobbyScreen {
@@ -27,539 +28,1594 @@
   .lobby-box {
     background: #141414;
     border: 2px solid #ff9900;
-    box-shadow: 0 0 30px #ff990022;
-    padding: 30px; border-radius: 8px;
-    width: 340px; text-align: center;
+    box-shadow: 0 0 30px #ff990033;
+    padding: 30px 40px;
+    width: 380px;
+    text-align: center;
   }
   .lobby-box input {
-    width: 100%; padding: 12px;
-    background: #0d0d0d; border: 1px solid #333;
-    color: #fff; font-family: monospace;
-    border-radius: 4px; margin-bottom: 15px;
-    text-align: center; outline: none;
+    width: 100%; padding: 10px;
+    background: #0a0a0a; border: 1px solid #444;
+    color: #00ffff; font-family: inherit; font-size: 14px;
+    margin-bottom: 12px;
   }
-  .lobby-box input:focus { border-color: #ffcc00; }
-  .lobby-box button {
+  .lobby-box input:focus { outline: none; border-color: #ff9900; }
+  .lobby-box label { font-size: 11px; color: #888; display: block;
+    text-align: left; margin-bottom: 4px; }
+  .btn-main {
     width: 100%; padding: 12px;
-    background: #ff9900; border: none;
-    color: #000; font-weight: bold;
-    font-family: monospace; font-size: 14px;
-    text-transform: uppercase; cursor: pointer;
-    border-radius: 4px; transition: 0.2s;
+    background: #ff9900; color: #111;
+    border: none; font-weight: bold; font-size: 14px;
+    cursor: pointer; text-transform: uppercase;
+    letter-spacing: 1px; margin-top: 6px;
   }
-  .lobby-box button:hover { background: #ffcc00; }
+  .btn-main:hover { background: #ffcc00; }
+  .btn-main.red { background: #444; color: #ccc; margin-top: 8px; }
+  .btn-main.red:hover { background: #555; }
+  #lobbyStatus {
+    margin-top: 16px; font-size: 12px; color: #ff9900;
+    min-height: 18px;
+  }
+  #playerList {
+    margin-top: 12px; text-align: left;
+    max-height: 120px; overflow-y: auto;
+  }
+  .player-entry {
+    font-size: 12px; padding: 4px 6px;
+    border-bottom: 1px solid #1a1a1a; color: #00ffff;
+  }
+  .player-entry.me { color: #00ff66; }
 
-  /* ── DESKTOP AREA ── */
-  #desktopArea {
-    position: fixed; inset: 0;
-    background: #008080; /* Clássico verde Windows XP */
-    overflow: hidden;
+  /* ── DESKTOP ── */
+  #desktop {
     display: none;
+    position: fixed; inset: 0;
+    overflow: hidden;
+    cursor: none;
+  }
+  #desktopBg {
+    position: absolute; inset: 0;
+    background: url('https://upload.wikimedia.org/wikipedia/en/8/8e/Windowsxp.png') center/cover no-repeat;
+  }
+  /* Taskbar */
+  #taskbar {
+    position: absolute; bottom: 0;
+    left: 0; right: 0; height: 36px;
+    background: linear-gradient(to bottom, #1f5fa6, #163d72);
+    border-top: 2px solid #3a7bd5;
+    display: flex; align-items: center;
+    padding: 0 8px; gap: 8px;
+    z-index: 500;
+  }
+  #startBtn {
+    background: #3c8a3c; color: #fff;
+    border: 1px solid #5ab55a;
+    padding: 3px 12px 3px 8px;
+    font-weight: bold; font-size: 13px;
+    cursor: pointer; border-radius: 2px;
+    font-family: 'Tahoma', sans-serif;
+    display: flex; align-items: center; gap: 4px;
+  }
+  #taskbarTime {
+    margin-left: auto; color: #fff;
+    font-family: 'Tahoma', sans-serif;
+    font-size: 12px; padding: 2px 6px;
+    background: #1a5ea8; border: 1px solid #2d6fc0;
+  }
+  .taskbar-btn {
+    background: #1a5ea8;
+    color: #fff;
+    border: 1px solid #2d6fc0;
+    padding: 3px 10px; font-size: 11px;
+    cursor: pointer; font-family: 'Tahoma', sans-serif;
+  }
+  .taskbar-btn:hover { background: #2567be; }
+
+  /* ── Cursors ── */
+  #myCursor {
+    position: fixed;
+    width: 20px; height: 20px;
+    pointer-events: none;
+    z-index: 99999;
+    transform: translate(-2px,-2px);
+    top: 0; left: 0;
+  }
+  .remote-cursor {
+    position: absolute; pointer-events: none;
+    z-index: 9998;
+    transform: translate(-2px,-2px);
+  }
+  .remote-cursor-label {
+    position: absolute;
+    top: -16px; left: 18px;
+    background: #000; color: #00ffff;
+    font-size: 10px; padding: 1px 4px;
+    border: 1px solid #00ffff;
+    font-family: 'Courier New', monospace;
+    white-space: nowrap; pointer-events: none;
+  }
+
+  /* ── Stickman Entity ── */
+  .stickman-entity {
+    position: absolute;
+    pointer-events: none;
+    z-index: 400;
+    text-align: center;
+  }
+  .stickman-sprite-area {
+    position: relative;
+    display: inline-block;
+  }
+  .stickman-canvas {
+    display: block;
+    pointer-events: all;
+    cursor: grab;
+  }
+  .stickman-canvas:active { cursor: grabbing; }
+  .stickman-nametag {
+    font-family: 'Courier New', monospace;
+    font-size: 10px; font-weight: bold;
+    color: #00ffff; background: #111116;
+    border: 1px solid #00ffff;
+    padding: 1px 5px; display: inline-block;
+    margin-bottom: 2px;
+  }
+  .stickman-hp-wrap {
+    width: 80px; height: 7px;
+    background: #222; border: 1px solid #555;
+    margin: 2px auto 0;
+  }
+  .stickman-hp-bar {
+    height: 100%; background: #00ff66;
+    transition: width 0.2s;
+  }
+  .stickman-bubble {
+    position: absolute;
+    background: #fff; color: #000;
+    border: 2px solid #000;
+    border-radius: 6px;
+    font-family: 'Arial', sans-serif;
+    font-size: 11px; font-weight: bold;
+    padding: 4px 8px;
+    max-width: 180px; white-space: normal;
+    bottom: calc(100% + 4px);
+    left: 50%; transform: translateX(-50%);
+    z-index: 10;
+    pointer-events: none;
+    animation: bubbleFade 4.5s forwards;
+    white-space: nowrap;
+  }
+  @keyframes bubbleFade {
+    0%,75% { opacity:1; } 100% { opacity:0; }
+  }
+
+  /* ── Context Menu ── */
+  .ctx-menu {
+    position: fixed;
+    background: #1a1a24; border: 1px solid #00ffff;
+    z-index: 9000;
+    font-family: 'Courier New', monospace;
+    font-size: 12px; min-width: 200px;
+    box-shadow: 0 4px 16px rgba(0,255,255,0.15);
+  }
+  .ctx-menu-item {
+    padding: 7px 16px; color: #ddd; cursor: pointer;
+  }
+  .ctx-menu-item:hover { background: #00ffff; color: #000; }
+  .ctx-menu-sep { border-top: 1px solid #333; margin: 2px 0; }
+  .ctx-menu-sub {
+    position: relative;
+  }
+  .ctx-menu-sub .ctx-submenu {
+    display: none;
+    position: absolute;
+    left: 100%; top: 0;
+    background: #1a1a24; border: 1px solid #00ffff;
+    min-width: 160px;
+    box-shadow: 4px 4px 12px rgba(0,0,0,0.6);
+  }
+  .ctx-menu-sub:hover .ctx-submenu { display: block; }
+
+  /* FX overlay */
+  .fx-layer {
+    position: absolute; inset: 0;
+    pointer-events: none; z-index: 5;
+    overflow: visible;
+  }
+
+  /* Ghost skill */
+  .ghost-entity { opacity: 0.55; }
+
+  /* Paint Studio Window */
+  #paintWindow {
+    position: absolute;
+    top: 60px; left: 60px;
+    width: 560px;
+    background: #ece9d8;
+    border: 2px solid #0054a0;
+    box-shadow: 4px 4px 12px rgba(0,0,0,0.5);
+    z-index: 600;
+    display: none;
+    font-family: 'Tahoma', sans-serif;
     user-select: none;
   }
-
-  /* ── TASKBAR XP ── */
-  #xpTaskbar {
-    position: absolute; bottom: 0; left: 0; right: 0;
-    height: 36px; background: linear-gradient(to bottom, #245edb 0%, #3f8cf3 9%, #1b52e3 18%, #174be6 57%, #1946d2 90%, #245edb 100%);
-    border-top: 1px solid #1a42b8;
-    z-index: 500; display: flex; align-items: center; justify-content: space-between;
-    padding: 0 10px; box-shadow: 0 -2px 5px rgba(0,0,0,0.3);
-  }
-  #xpStartBtn {
-    height: 30px; width: 85px;
-    background: linear-gradient(to bottom, #388a24 0%, #61bd46 10%, #3e962b 25%, #2a7319 60%, #1e5212 100%);
-    border: none; border-top-right-radius: 6px; border-bottom-right-radius: 6px;
-    box-shadow: 2px 2px 3px rgba(0,0,0,0.4);
-    color: #fff; font-family: 'Tahoma', sans-serif; font-weight: bold; font-style: italic;
-    font-size: 15px; text-shadow: 1px 1px 1px #000;
-    cursor: pointer; display: flex; align-items: center; justify-content: center;
-  }
-  #xpStartBtn:hover { filter: brightness(1.1); }
-  #xpClock {
-    color: #fff; font-family: 'Tahoma', sans-serif; font-size: 12px;
-    background: linear-gradient(to bottom, #0972a9 0%, #1293d7 12%, #0a73aa 26%, #0d5985 65%, #053655 100%);
-    border-left: 1px solid #105986; height: 100%; display: flex; align-items: center;
-    padding: 0 15px; margin-right: -10px;
-  }
-
-  /* Menu Iniciar */
-  #xpStartMenu {
-    position: absolute; bottom: 36px; left: 0;
-    background: #2d6fc0; border: 2px solid #163d72;
-    color: #fff; font-family: 'Tahoma', sans-serif; font-size: 12px;
-    width: 180px; z-index: 600; box-shadow: 3px -3px 8px rgba(0,0,0,0.5);
-    display: none;
-  }
-  .start-menu-item {
-    padding: 10px 14px; cursor: pointer; border-bottom: 1px solid #23589b;
-  }
-  .start-menu-item:hover { background: #2567be; }
-
-  /* ── ELEMENTOS DE JOGO (STICKMANS / ITENS) ── */
-  .sandbox-entity {
-    position: absolute;
-    cursor: grab;
-    touch-action: none;
-    z-index: 100;
-    transform-origin: center;
-  }
-  .sandbox-entity:active { cursor: grabbing; }
-  .entity-img {
-    width: 100%; height: 100%;
-    object-fit: contain;
-    pointer-events: none;
-  }
-  .entity-label {
-    position: absolute; top: -18px; left: 50%;
-    transform: translateX(-50%);
-    background: rgba(0,0,0,0.6); color: #ffcc00;
-    padding: 1px 6px; font-family: monospace; font-size: 10px;
-    border-radius: 3px; white-space: nowrap; pointer-events: none;
-  }
-
-  /* ── REMOTES MOUSES ── */
-  .remote-mouse {
-    position: absolute;
-    width: 14px; height: 20px;
-    background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white" stroke="black" stroke-width="2"><path d="M4.5 2v17.5l4.8-4.7 3.6 8.3 3.1-1.4-3.6-8.2 6.1-.5z"/></svg>') no-repeat;
-    pointer-events: none;
-    z-index: 9999;
-    font-family: monospace;
-    font-size: 11px;
-    color: white;
-    text-shadow: 1px 1px 2px black;
-    white-space: nowrap;
-    transition: transform 0.05s linear;
-  }
-
-  /* ── PAINT STUDIO WINDOW ── */
-  #paintWindow {
-    position: absolute; top: 50px; left: 50px;
-    width: 600px; height: 650px;
-    background: #f1f1f1; border: 3px solid #004eaf;
-    box-shadow: 5px 5px 15px rgba(0,0,0,0.3);
-    z-index: 800; display: none; flex-direction: column;
-    font-family: sans-serif;
-  }
-  .window-titlebar {
-    background: linear-gradient(to right, #0058e6 0%, #3a83ff 100%);
-    color: white; font-weight: bold; padding: 6px 10px;
+  .win-titlebar {
+    background: linear-gradient(to right, #0054a0, #2b7bdd);
+    color: #fff; padding: 4px 8px;
     display: flex; justify-content: space-between; align-items: center;
+    font-size: 12px; font-weight: bold;
     cursor: move;
   }
-  .window-close {
-    background: #e81123; color: white; border: none;
-    width: 22px; height: 22px; font-weight: bold; cursor: pointer;
+  .win-controls { display: flex; gap: 2px; }
+  .win-btn {
+    width: 16px; height: 14px;
+    background: #d9d9d9; border: 1px solid #888;
+    font-size: 10px; font-weight: bold;
+    cursor: pointer; display: flex;
+    align-items: center; justify-content: center;
+    color: #000;
   }
-  .window-content { flex: 1; display: flex; flex-direction: column; background: white; position: relative; }
-  iframe { border: none; width: 100%; height: 100%; }
+  .win-btn:hover { background: #fff; }
+  .win-btn.close-btn:hover { background: #e05; color: #fff; }
+  #paintToolbar {
+    background: #ece9d8;
+    border-bottom: 1px solid #aaa;
+    padding: 4px 6px;
+    display: flex; flex-wrap: wrap;
+    align-items: center; gap: 4px;
+  }
+  .pt-label { font-size: 11px; color: #444; font-weight: bold; }
+  .color-swatch {
+    width: 20px; height: 20px;
+    border: 2px solid #888; cursor: pointer;
+  }
+  .color-swatch.active, .color-swatch:hover { border-color: #000; transform: scale(1.2); }
+  .pt-btn {
+    background: #d4d0c8;
+    border: 1px solid #999;
+    padding: 2px 8px; font-size: 11px;
+    cursor: pointer; font-family: inherit;
+  }
+  .pt-btn:hover { background: #c0bdb5; }
+  .pt-btn.active { background: #b0cce0; border-color: #0054a0; }
+  #paintCanvas {
+    display: block;
+    cursor: crosshair;
+    background: #fff;
+  }
+  #paintStatusBar {
+    background: #ece9d8; border-top: 1px solid #aaa;
+    padding: 2px 8px; font-size: 11px;
+    color: #444;
+    display: flex; gap: 20px;
+  }
+  #injectMenu {
+    position: fixed; background: #ece9d8;
+    border: 1px solid #aaa; z-index: 9999;
+    display: none; font-family: 'Tahoma', sans-serif;
+    box-shadow: 2px 2px 6px rgba(0,0,0,0.3);
+  }
+  .inject-item {
+    padding: 6px 16px; font-size: 12px;
+    cursor: pointer;
+  }
+  .inject-item:hover { background: #0054a0; color: #fff; }
+  
+  #namePrompt {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.5);
+    display: none; align-items: center;
+    justify-content: center;
+    z-index: 20000;
+  }
+  .prompt-box {
+    background: #ece9d8;
+    border: 2px solid #0054a0;
+    padding: 16px 20px;
+    width: 280px;
+    font-family: 'Tahoma', sans-serif;
+  }
+  .prompt-box h3 { font-size: 13px; margin-bottom: 10px; }
+  .prompt-box input {
+    width: 100%; padding: 5px;
+    border: 1px solid #888; font-family: inherit;
+    font-size: 13px; margin-bottom: 10px;
+  }
+  .prompt-box .prompt-btns { display: flex; gap: 8px; justify-content: flex-end; }
+  .prompt-box button {
+    background: #d4d0c8; border: 1px solid #888;
+    padding: 4px 16px; cursor: pointer;
+    font-family: inherit; font-size: 12px;
+  }
+  .prompt-box button.ok { background: #0054a0; color: #fff; border-color: #003a80; }
+
+  /* Modal de input genérico */
+  #genericPrompt {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.6);
+    display: none; align-items: center;
+    justify-content: center;
+    z-index: 20001;
+  }
+
+  #connIndicator {
+    position: absolute; top: 8px; right: 12px;
+    font-family: 'Courier New', monospace;
+    font-size: 11px; z-index: 600;
+    display: flex; align-items: center; gap: 5px;
+    background: rgba(0,0,0,0.6);
+    padding: 3px 8px; border-radius: 3px;
+    color: #00ff66;
+  }
+  .conn-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #00ff66;
+    animation: blink 1.5s infinite;
+  }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.2} }
+  #playerCount {
+    position: absolute;
+    top: 8px; left: 12px;
+    font-family: 'Courier New', monospace;
+    font-size: 11px; z-index: 600;
+    background: rgba(0,0,0,0.6);
+    padding: 3px 8px; border-radius: 3px;
+    color: #ffcc00;
+  }
 </style>
-
-<script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
-  import { getDatabase, ref, set, onValue, push, remove, update, onChildAdded, onChildRemoved, onChildChanged } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-database.js";
-
-  const firebaseConfig = {
-    databaseURL: "https://stickland-3ccaa-default-rtdb.firebaseio.com"
-  };
-
-  const app = initializeApp(firebaseConfig);
-  const db = getDatabase(app);
-
-  // Variáveis globais do sistema de sessão
-  let roomId = "";
-  let myId = "player_" + Math.random().toString(36).substring(2, 9);
-  let myName = "Jogador";
-
-  // Estado Local de Simulação de Stickmans (Física Local sincronizada ou rodada em paralelo)
-  const localEntities = {};
-  const remoteMousesContainer = document.getElementById('desktopArea');
-
-  // Configurações Globais de Física Exata do Python
-  const GRAVITY = 0.45;
-  const BOUNCE = -0.3;
-  const FRICTION = 0.98;
-  const SPRITE_SIZE = 120; // Tamanho igual ao Python
-
-  window.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('joinBtn').addEventListener('click', joinRoom);
-    document.getElementById('xpStartBtn').addEventListener('click', toggleStartMenu);
-    setupClock();
-    setupWindowDrag();
-  });
-
-  function setupClock() {
-    setInterval(() => {
-      const now = new Date();
-      document.getElementById('xpClock').textContent = now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-    }, 1000);
-  }
-
-  function toggleStartMenu() {
-    const menu = document.getElementById('xpStartMenu');
-    menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
-  }
-
-  function joinRoom() {
-    const rInput = document.getElementById('roomInput').value.trim();
-    const nInput = document.getElementById('nameInput').value.trim();
-
-    if(!rInput || !nInput) {
-      alert("Por favor, preencha a Sala e o seu Nome!");
-      return;
-    }
-
-    roomId = rInput;
-    myName = nInput;
-
-    document.getElementById('lobbyScreen').style.display = 'none';
-    document.getElementById('desktopArea').style.display = 'block';
-
-    // 1. Registrar presença do Player e configurar desconexão
-    const playerRef = ref(db, `desktopRooms/${roomId}/players/${myId}`);
-    set(playerRef, {
-      name: myName,
-      active: true,
-      x: 0,
-      y: 0
-    });
-    
-    // Configura remoção automática ao fechar a aba
-    window.addEventListener('beforeunload', () => {
-      set(ref(db, `desktopRooms/${roomId}/players/${myId}`), null);
-    });
-
-    // 2. Escutar mouses da sala (REPLICATE MOUSES CORRIGIDO)
-    listenMouses();
-
-    // 3. Rastrear movimento do mouse do jogador local
-    window.addEventListener('mousemove', (e) => {
-      update(ref(db, `desktopRooms/${roomId}/players/${myId}`), {
-        x: e.clientX,
-        y: e.clientY
-      });
-    });
-
-    // 4. Escutar criações de Stickmans/Itens na Sala do Firebase
-    listenItems();
-
-    // 5. Iniciar Loop de Física Idêntico ao Python
-    setInterval(updatePhysicsLoop, 20); // ~50 FPS constante
-  }
-
-  // CORREÇÃO E IMPLEMENTAÇÃO DO MOUSE REPLICATION
-  function listenMouses() {
-    const playersRef = ref(db, `desktopRooms/${roomId}/players`);
-    
-    onValue(playersRef, (snapshot) => {
-      const playersData = snapshot.val() || {};
-      
-      // Remover cursores de quem saiu ou está inativo
-      const currentElements = document.querySelectorAll('.remote-mouse');
-      currentElements.forEach(el => {
-        const id = el.getAttribute('data-id');
-        if (!playersData[id] || id === myId) {
-          el.remove();
-        }
-      });
-
-      // Desenhar ou atualizar mouses ativos dos outros players
-      for (let pId in playersData) {
-        if (pId === myId) continue; // Ignora o próprio mouse
-        
-        let mouseEl = document.querySelector(`.remote-mouse[data-id="${pId}"]`);
-        if (!mouseEl) {
-          mouseEl = document.createElement('div');
-          mouseEl.className = 'remote-mouse';
-          mouseEl.setAttribute('data-id', pId);
-          remoteMousesContainer.appendChild(mouseEl);
-        }
-        
-        // Atualiza a posição na tela e coloca o nome do jogador do lado
-        mouseEl.style.left = playersData[pId].x + 'px';
-        mouseEl.style.top = playersData[pId].y + 'px';
-        mouseEl.innerHTML = `&nbsp;&nbsp;&nbsp;&nbsp;${playersData[pId].name || 'Jogador'}`;
-      }
-    });
-  }
-
-  // ESCUTAR E RENDERIZAR ITENS/STICKMANS DO BANCO DE DADOS
-  function listenItems() {
-    const itemsRef = ref(db, `desktopRooms/${roomId}/items`);
-
-    onChildAdded(itemsRef, (snapshot) => {
-      const id = snapshot.key;
-      const data = snapshot.val();
-      createEntityElement(id, data);
-    });
-
-    onChildRemoved(itemsRef, (snapshot) => {
-      const id = snapshot.key;
-      if (localEntities[id]) {
-        localEntities[id].element.remove();
-        delete localEntities[id];
-      }
-    });
-
-    onChildChanged(itemsRef, (snapshot) => {
-      const id = snapshot.key;
-      const data = snapshot.val();
-      if (localEntities[id] && localEntities[id].dragging) {
-        // Se outro jogador estiver arrastando, sincroniza posição na tela
-        localEntities[id].x = data.x;
-        localEntities[id].y = data.y;
-        localEntities[id].element.style.left = data.x + 'px';
-        localEntities[id].element.style.top = data.y + 'px';
-      }
-    });
-  }
-
-  // CRIAÇÃO DOS STICKMANS COM ATRIBUTOS IDÊNTICOS DO PYTHON
-  function createEntityElement(id, data) {
-    const el = document.createElement('div');
-    el.className = 'sandbox-entity';
-    el.style.width = SPRITE_SIZE + 'px';
-    el.style.height = SPRITE_SIZE + 'px';
-    el.style.left = (data.x || 100) + 'px';
-    el.style.top = (data.y || 100) + 'px';
-
-    const img = document.createElement('img');
-    img.className = 'entity-img';
-    // Se tiver imagem base64 injetada pelo paint_studio usa ela, se não usa a padrão
-    img.src = data.image_b64 ? `data:image/png;base64,${data.image_b64}` : (data.image_path || 'https://i.imgur.com/w9O79G4.png');
-    el.appendChild(img);
-
-    if (data.name) {
-      const label = document.createElement('div');
-      label.className = 'entity-label';
-      label.textContent = data.name;
-      el.appendChild(label);
-    }
-
-    document.getElementById('desktopArea').appendChild(el);
-
-    // Estrutura de inteligência, gravidade e habilidades IDÊNTICAS do Python
-    localEntities[id] = {
-      id: id,
-      element: el,
-      type: data.action || 'stickman',
-      name: data.name || '',
-      x: data.x || 100,
-      y: data.y || 100,
-      vx: (Math.random() * 6) - 3, // Velocidade inicial aleatória x
-      vy: 0,                       // Velocidade inicial y
-      dragging: false,
-      // Habilidades/Poderes carregados (Ex: velocidade, passiva)
-      skills: {
-        speed: Math.random() < 0.25, // 25% de chance de ser super veloz igual no Python
-        climer: Math.random() < 0.15
-      },
-      // Estados internos do Loop de IA Python
-      aiTimer: 0,
-      aiState: 'idle'
-    };
-
-    // Implementação de Drag & Drop (Arrastar com o mouse) sincronizado
-    el.addEventListener('mousedown', (e) => {
-      localEntities[id].dragging = true;
-      localEntities[id].vx = 0;
-      localEntities[id].vy = 0;
-      
-      const offsetX = e.clientX - localEntities[id].x;
-      const offsetY = e.clientY - localEntities[id].y;
-
-      function onMouseMove(moveEvent) {
-        if (!localEntities[id].dragging) return;
-        let nx = moveEvent.clientX - offsetX;
-        let ny = moveEvent.clientY - offsetY;
-
-        localEntities[id].x = nx;
-        localEntities[id].y = ny;
-        el.style.left = nx + 'px';
-        el.style.top = ny + 'px';
-
-        // Atualizar no Firebase em tempo real para os outros verem arrastando
-        update(ref(db, `desktopRooms/${roomId}/items/${id}`), { x: nx, y: ny });
-      }
-
-      function onMouseUp() {
-        localEntities[id].dragging = false;
-        window.removeEventListener('mousemove', onMouseMove);
-        window.removeEventListener('mouseup', onMouseUp);
-      }
-
-      window.addEventListener('mousemove', onMouseMove);
-      window.addEventListener('mouseup', onMouseUp);
-    });
-  }
-
-  // LOOP DE FÍSICA E INTELIGÊNCIA ARTIFICIAL IDÊNTICO AO DESKTOP_SANDBOX.PY
-  function updatePhysicsLoop() {
-    const screenW = window.innerWidth;
-    const screenH = window.innerHeight - 36; // Desconta a barra de tarefas
-
-    for (let id in localEntities) {
-      const ent = localEntities[id];
-      if (ent.dragging) continue; // Se estiver sendo arrastado, a física não atua
-
-      // ── 1. APLICAÇÃO DE GRAVIDADE EXATA ──
-      ent.vy += GRAVITY;
-      ent.x += ent.vx;
-      ent.y += ent.vy;
-
-      // ── 2. INTELIGÊNCIA ARTIFICIAL (IA) E MUDANÇA DE ESTADOS ──
-      if (ent.type === 'stickman') {
-        ent.aiTimer++;
-        
-        // A cada certo tempo (Equivalente ao random.uniform do Python) muda o foco
-        if (ent.aiTimer > (ent.skills.speed ? 40 : 80)) {
-          ent.aiTimer = 0;
-          const r = Math.random();
-          if (r < 0.4) {
-            ent.aiState = 'walk_left';
-            ent.vx = ent.skills.speed ? -4.5 : -1.8; // Velocidade baseada na skill igual Python
-            ent.element.style.transform = 'scaleX(-1)'; // Olha para a esquerda
-          } else if (r < 0.8) {
-            ent.aiState = 'walk_right';
-            ent.vx = ent.skills.speed ? 4.5 : 1.8;  // Olha para a direita
-            ent.element.style.transform = 'scaleX(1)';
-          } else {
-            ent.aiState = 'idle';
-            ent.vx = 0;
-          }
-        }
-      }
-
-      // Atrito com o Ar / Chão
-      ent.vx *= FRICTION;
-
-      // ── 3. COLISÕES COM AS BORDAS DA TELA (PISO, TETO E LATERAIS) ──
-      // Colisão Piso (Chão da tela / Cima da Taskbar)
-      if (ent.y + SPRITE_SIZE >= screenH) {
-        ent.y = screenH - SPRITE_SIZE;
-        ent.vy = ent.vy * BOUNCE; // Quica baseado no BOUNCE do Python
-        
-        // Se o impacto do quique for muito baixo, para de quicar
-        if (Math.abs(ent.vy) < 1) ent.vy = 0;
-      }
-
-      // Colisão Teto
-      if (ent.y < 0) {
-        ent.y = 0;
-        ent.vy = 0;
-      }
-
-      // Colisão Lateral Esquerda
-      if (ent.x < 0) {
-        ent.x = 0;
-        ent.vx = -ent.vx * 0.6; // Inverte o sentido do movimento
-        if (ent.aiState === 'walk_left') {
-          ent.aiState = 'walk_right';
-          ent.element.style.transform = 'scaleX(1)';
-        }
-      }
-
-      // Colisão Lateral Direita
-      if (ent.x + SPRITE_SIZE > screenW) {
-        ent.x = screenW - SPRITE_SIZE;
-        ent.vx = -ent.vx * 0.6;
-        if (ent.aiState === 'walk_right') {
-          ent.aiState = 'walk_left';
-          ent.element.style.transform = 'scaleX(-1)';
-        }
-      }
-
-      // ── 4. ATUALIZAR ELEMENTO NA TELA HTML ──
-      ent.element.style.left = ent.x + 'px';
-      ent.element.style.top = ent.y + 'px';
-    }
-  }
-
-  // ── GERENCIAMENTO DA JANELA DO PAINT STUDIO ──
-  window.openPaintStudio = function() {
-    const win = document.getElementById('paintWindow');
-    win.style.display = 'flex';
-    toggleStartMenu(); // Fecha o menu iniciar ao abrir
-  };
-
-  window.closePaintStudio = function() {
-    document.getElementById('paintWindow').style.display = 'none';
-  };
-
-  window.clearDesktopRoom = function() {
-    if (confirm('Remover todos os itens e Stickmans desta sala?')) {
-      remove(ref(db, `desktopRooms/${roomId}/items`));
-      toggleStartMenu();
-    }
-  };
-
-  window.leaveDesktopRoom = function() {
-    set(ref(db, `desktopRooms/${roomId}/players/${myId}`), null);
-    location.reload();
-  };
-
-  function setupWindowDrag() {
-    const titlebar = document.querySelector('.window-titlebar');
-    const win = document.getElementById('paintWindow');
-    let isDraggingWin = false;
-    let offsetWinX, offsetWinY;
-
-    titlebar.addEventListener('mousedown', (e) => {
-      if(e.target.className === 'window-close') return;
-      isDraggingWin = true;
-      offsetWinX = e.clientX - win.offsetLeft;
-      offsetWinY = e.clientY - win.offsetTop;
-    });
-
-    window.addEventListener('mousemove', (e) => {
-      if (!isDraggingWin) return;
-      win.style.left = (e.clientX - offsetWinX) + 'px';
-      win.style.top = (e.clientY - offsetWinY) + 'px';
-    });
-
-    window.addEventListener('mouseup', () => {
-      isDraggingWin = false;
-    });
-  }
-</script>
 </head>
 <body>
 
-  <div id="lobbyScreen">
-    <h1>Stickman Sandbox</h1>
-    <p class="sub">Multiplayer Desktop Engine</p>
-    <div class="lobby-box">
-      <input type="text" id="roomInput" placeholder="Código da Sala (Ex: sala1)" value="sala1">
-      <input type="text" id="nameInput" placeholder="Seu Nome/Nickname">
-      <button id="joinBtn">Entrar na Sala</button>
+<div id="lobbyScreen">
+  <h1>🖥️ Stickman Desktop</h1>
+  <p class="sub">Multiplayer · Roda no Navegador · Física Real</p>
+  <div class="lobby-box">
+    <label>Seu apelido</label>
+    <input type="text" id="inputNick" placeholder="Ex: Zezão_2000" maxlength="20">
+    <label>Código da sala</label>
+    <input type="text" id="inputRoom" placeholder="Ex: sala123" maxlength="20">
+    <div id="playerList"></div>
+    <div id="lobbyStatus">Digite seu nick e um código de sala.</div>
+    <button class="btn-main" id="btnJoin">Entrar na Sala</button>
+    <button class="btn-main red" id="btnStart">▶ Iniciar Agora</button>
+  </div>
+</div>
+
+<div id="desktop">
+  <div id="desktopBg"></div>
+  <div id="connIndicator"><div class="conn-dot"></div><span id="connText">online</span></div>
+  <div id="playerCount">👥 <span id="pcCount">1</span> jogador(es)</div>
+
+  <!-- Cursor do jogador local (sempre visível, sem cursor nativo) -->
+  <div id="myCursor">
+    <svg viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg" width="20" height="20">
+      <polygon points="2,2 2,16 6,12 9,18 11,17 8,11 14,11" fill="white" stroke="black" stroke-width="1.2"/>
+    </svg>
+  </div>
+
+  <!-- Paint Studio -->
+  <div id="paintWindow">
+    <div class="win-titlebar" id="paintTitlebar">
+      <span>🎨 Estúdio de Criação Paint</span>
+      <div class="win-controls">
+        <div class="win-btn">_</div>
+        <div class="win-btn">□</div>
+        <div class="win-btn close-btn" id="btnClosePaint">✕</div>
+      </div>
+    </div>
+    <div id="paintToolbar">
+      <span class="pt-label">Cor:</span>
+      <div class="color-swatch active" style="background:#000" data-color="black"></div>
+      <div class="color-swatch" style="background:#f00" data-color="red"></div>
+      <div class="color-swatch" style="background:#00f" data-color="blue"></div>
+      <div class="color-swatch" style="background:#0a0" data-color="green"></div>
+      <div class="color-swatch" style="background:#f80" data-color="orange"></div>
+      <div class="color-swatch" style="background:#a0f" data-color="purple"></div>
+      <div class="color-swatch" style="background:#0ff" data-color="cyan"></div>
+      <div class="color-swatch" style="background:#ff0" data-color="yellow"></div>
+      <span class="pt-label" style="margin-left:6px">Forma:</span>
+      <button class="pt-btn active" data-tool="pencil">✏️ Livre</button>
+      <button class="pt-btn" data-tool="rect">⬜ Retâng.</button>
+      <button class="pt-btn" data-tool="oval">⭕ Círc.</button>
+      <button class="pt-btn" data-tool="line">╱ Linha</button>
+      <span class="pt-label" style="margin-left:6px">Pincel:</span>
+      <button class="pt-btn" data-size="2">Fino</button>
+      <button class="pt-btn active" data-size="6">Médio</button>
+      <button class="pt-btn" data-size="14">Grosso</button>
+      <button class="pt-btn" style="margin-left:10px;background:#fcc;" id="btnClearPaint">🗑 Limpar</button>
+    </div>
+    <canvas id="paintCanvas" width="556" height="380"></canvas>
+    <div id="paintStatusBar">
+      <span>Clique direito no Canvas para injetar</span>
+      <span id="paintCoords">x:0, y:0</span>
     </div>
   </div>
 
-  <div id="desktopArea">
-    
-    <div id="paintWindow">
-      <div class="window-titlebar">
-        <span>🎨 Estúdio de Criação Paint</span>
-        <button class="window-close" onclick="closePaintStudio()">X</button>
-      </div>
-      <div class="window-content">
-        <iframe src="paint_studio.html"></iframe>
-      </div>
-    </div>
-
-    <div id="xpTaskbar">
-      <button id="xpStartBtn">Iniciar</button>
-      <div id="xpClock">00:00</div>
-    </div>
-
-    <div id="xpStartMenu">
-      <div class="start-menu-item" onclick="openPaintStudio()">🎨 Abrir Paint Studio</div>
-      <div class="start-menu-item" onclick="clearDesktopRoom()">🗑 Limpar Sala (Reset)</div>
-      <div class="start-menu-item" onclick="leaveDesktopRoom()">🚪 Sair da Sala</div>
-    </div>
-
+  <!-- Inject Context Menu -->
+  <div id="injectMenu">
+    <div class="inject-item" data-action="stickman">✨ Injetar como Stickman Vivo</div>
+    <div class="inject-item" data-action="weapon">⚔️ Equipar como Arma Física</div>
+    <div class="inject-item" data-action="barrier">🧱 Fixar como Barreira Sólida</div>
   </div>
 
+  <!-- Name Prompt -->
+  <div id="namePrompt">
+    <div class="prompt-box">
+      <h3>Configuração do Stickman</h3>
+      <input type="text" id="stickNameInput" placeholder="Ex: Bob, Destroyer, God...">
+      <div class="prompt-btns">
+        <button id="btnNameCancel">Cancelar</button>
+        <button class="ok" id="btnNameOk">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Generic text prompt -->
+  <div id="genericPrompt">
+    <div class="prompt-box">
+      <h3 id="genericPromptTitle">Prompt</h3>
+      <input type="text" id="genericPromptInput" placeholder="">
+      <div class="prompt-btns">
+        <button id="btnGenericCancel">Cancelar</button>
+        <button class="ok" id="btnGenericOk">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stickman context menu placeholder -->
+  <div id="stickCtxMenu" class="ctx-menu" style="display:none;"></div>
+
+  <div id="taskbar">
+    <button id="startBtn">
+      <svg width="14" height="14" viewBox="0 0 14 14"><rect width="6" height="6" fill="#f00"/><rect x="8" width="6" height="6" fill="#0f0"/><rect y="8" width="6" height="6" fill="#00f"/><rect x="8" y="8" width="6" height="6" fill="#ff0"/></svg>
+      Iniciar
+    </button>
+    <button class="taskbar-btn" id="btnOpenPaint">🎨 Paint Studio</button>
+    <div id="taskbarTime">00:00</div>
+  </div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js";
+import { getDatabase, ref, set, push, onValue, update, remove, get }
+  from "https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js";
+
+const firebaseConfig = { databaseURL: "https://stickland-3ccaa-default-rtdb.firebaseio.com" };
+const app = initializeApp(firebaseConfig);
+const db  = getDatabase(app);
+
+// ═══════════════════ CONFIGURAÇÕES GLOBAIS ════════════════════
+const FIREBASE_URL = "https://stickland-3ccaa-default-rtdb.firebaseio.com";
+const API_KEY  = "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";
+const API_URL  = "https://api.groq.com/openai/v1/chat/completions";
+const GRAVITY  = 0.72;   // pixels/frame² idêntico ao Python (0.85 * 16ms ≈ coerente)
+const FRICTION = 0.84;
+const FLOOR_Y  = () => window.innerHeight - 36; // taskbar
+
+// ═══════════════════ ESTADO LOCAL ════════════════════════════
+const MAX_PLAYERS = 4;
+let myId   = 'p_' + Math.random().toString(36).slice(2,9);
+let myNick = '';
+let roomId = '';
+let roomRef = null;
+let inDesktop = false;
+
+// Posição do cursor LOCAL (para IA dos stickmans perseguirem/fugirem)
+let localMouseX = window.innerWidth / 2;
+let localMouseY = window.innerHeight / 2;
+
+const remoteCursors = {};
+const stickmans     = {};   // fbKey → SmObj
+const staticItems   = {};   // fbKey → { el, data }
+let   activeCtxMenu = null;
+let   pendingGenericCb = null;
+
+// ═══════════════════ LOBBY ═══════════════════════════════════
+document.getElementById('btnJoin').addEventListener('click', joinRoom);
+document.getElementById('btnStart').addEventListener('click', () => { if (!validateLobby()) return; startDesktop(); });
+document.getElementById('inputRoom').addEventListener('keydown', e => { if (e.key==='Enter') joinRoom(); });
+
+function validateLobby() {
+  myNick = document.getElementById('inputNick').value.trim();
+  roomId = document.getElementById('inputRoom').value.trim().replace(/\s/g,'');
+  if (!myNick) { setLobbyStatus('⚠ Digite seu apelido.'); return false; }
+  if (!roomId) { setLobbyStatus('⚠ Digite um código de sala.'); return false; }
+  return true;
+}
+
+async function joinRoom() {
+  if (!validateLobby()) return;
+  setLobbyStatus('Conectando...');
+  await set(ref(db, `desktopRooms/${roomId}/players/${myId}`), { nick:myNick, joinedAt:Date.now(), active:true });
+  onValue(ref(db, `desktopRooms/${roomId}/players`), snap => {
+    if (!snap.exists()) return;
+    const list = Object.values(snap.val()).filter(p=>p.active);
+    renderLobbyPlayers(list);
+    setLobbyStatus(`${list.length}/${MAX_PLAYERS} jogadores na sala.`);
+    if (list.length >= 2 && !inDesktop) startDesktop();
+  });
+}
+function setLobbyStatus(t) { document.getElementById('lobbyStatus').textContent = t; }
+function renderLobbyPlayers(arr) {
+  const box = document.getElementById('playerList'); box.innerHTML = '';
+  arr.forEach(p => {
+    const d = document.createElement('div');
+    d.className = 'player-entry' + (p.nick===myNick?' me':'');
+    d.textContent = `• ${p.nick} ${p.nick===myNick?'(Você)':''}`;
+    box.appendChild(d);
+  });
+}
+
+function startDesktop() {
+  inDesktop = true;
+  document.getElementById('lobbyScreen').style.display = 'none';
+  document.getElementById('desktop').style.display = 'block';
+  setupCursorTracking();
+  setupRemoteCursors();
+  setupItemsSync();
+  setupClock();
+}
+
+function setupClock() {
+  const el = document.getElementById('taskbarTime');
+  const tick = () => { const d=new Date(); el.textContent=d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}); };
+  tick(); setInterval(tick, 10000);
+}
+
+// ═══════════════════ CURSOR LOCAL ═══════════════════════════
+// cursor nativo está desativado via CSS (cursor:none no body e no #desktop)
+function setupCursorTracking() {
+  const cur = document.getElementById('myCursor');
+  // Usar mousemove no document todo para capturar fora do desktop também
+  document.addEventListener('mousemove', e => {
+    localMouseX = e.clientX;
+    localMouseY = e.clientY;
+    cur.style.left = e.clientX + 'px';
+    cur.style.top  = e.clientY + 'px';
+    if (roomRef) {
+      update(ref(db, `desktopRooms/${roomId}/cursors/${myId}`), {
+        x: (e.clientX/window.innerWidth)*100,
+        y: (e.clientY/window.innerHeight)*100,
+        nick: myNick, t: Date.now()
+      });
+    }
+  });
+}
+
+function setupRemoteCursors() {
+  onValue(ref(db, `desktopRooms/${roomId}/cursors`), snap => {
+    const data = snap.val() || {};
+    Object.keys(remoteCursors).forEach(uid => {
+      if (!data[uid]) { remoteCursors[uid].el.remove(); delete remoteCursors[uid]; }
+    });
+    Object.entries(data).forEach(([uid, cur]) => {
+      if (uid===myId) return;
+      if (Date.now()-cur.t > 12000) return;
+      const x = (cur.x/100)*window.innerWidth;
+      const y = (cur.y/100)*window.innerHeight;
+      if (!remoteCursors[uid]) {
+        const el = document.createElement('div');
+        el.className = 'remote-cursor';
+        el.innerHTML = `<svg viewBox="0 0 20 20" width="20" height="20" xmlns="http://www.w3.org/2000/svg"><polygon points="2,2 2,16 6,12 9,18 11,17 8,11 14,11" fill="white" stroke="black" stroke-width="1.2"/></svg><div class="remote-cursor-label">${cur.nick}</div>`;
+        document.getElementById('desktop').appendChild(el);
+        remoteCursors[uid] = { el };
+      }
+      remoteCursors[uid].el.style.left = x+'px';
+      remoteCursors[uid].el.style.top  = y+'px';
+    });
+  });
+}
+
+// ═══════════════════ GROQ IA ════════════════════════════════
+async function askAI(systemPrompt, userPrompt, memory=[], temp=0.85) {
+  const messages = [{ role:'system', content:systemPrompt }];
+  memory.slice(-6).forEach(m => {
+    messages.push({ role:'user', content: m.user||'' });
+    if (m.ai) messages.push({ role:'assistant', content: m.ai });
+  });
+  messages.push({ role:'user', content: userPrompt });
+  try {
+    const r = await fetch(API_URL, {
+      method:'POST',
+      headers:{ 'Authorization':`Bearer ${API_KEY}`, 'Content-Type':'application/json' },
+      body: JSON.stringify({ model:'llama-3.1-8b-instant', messages, temperature:temp, max_tokens:120 })
+    });
+    const j = await r.json();
+    return j.choices?.[0]?.message?.content?.trim() || '...';
+  } catch { return '...'; }
+}
+
+// ═══════════════════ SISTEMA DE PODER POR NOME ══════════════
+function evaluateStickmanStats(name) {
+  const n = name.toLowerCase();
+  const BOSS_KEYWORDS   = ['god','deus','overlord','void','caine','fodao','dark','hacker','pvp','boss','evil','vader','chaos','supremo','destroyer','satan','diabo','rex','titan','omega'];
+  const WEAK_KEYWORDS   = ['bob','zezinho','stickman','pacifico','pacífico','amigo','stick','boneco'];
+  const HOSTIL_KEYWORDS = ['kill','lord','unhinged','hostil'];
+
+  let isBoss   = BOSS_KEYWORDS.some(k => n.includes(k));
+  let isWeak   = WEAK_KEYWORDS.some(k => n.includes(k));
+  let isHostil = HOSTIL_KEYWORDS.some(k => n.includes(k));
+
+  // HP
+  let hp = isWeak ? (10+Math.random()*40|0) : isBoss ? (150+Math.random()*350|0) : (60+Math.random()*60|0);
+
+  // Alinhamento
+  let alignment;
+  if (isBoss || n.includes('dark') || n.includes('evil')) alignment = 'Destrutor';
+  else if (isHostil) alignment = 'Hostil';
+  else alignment = ['Pacífico','Pacífico','Pacífico','Caótico','Hostil'][Math.floor(Math.random()*5)];
+
+  // Skills
+  const sk = {
+    fly:false, laser:false, clone:false, speed:false,
+    ghost:false, fire:false, fireball:false, thunder:false,
+    blackhole:false, timestop:false
+  };
+
+  if (isBoss) {
+    Object.keys(sk).forEach(k => sk[k] = true);
+    hp = Math.max(hp, 300);
+  } else if (!isWeak) {
+    const pool = Object.keys(sk);
+    const count = Math.floor(Math.random()*4);
+    for (let i=0;i<count;i++) sk[pool[Math.floor(Math.random()*pool.length)]] = true;
+  }
+
+  return { hp, maxHp:hp, alignment, skills:sk };
+}
+
+// ═══════════════════ PAINT STUDIO ═══════════════════════════
+const cnv = document.getElementById('paintCanvas');
+const pctx = cnv.getContext('2d');
+let shapeSnapshot = null;
+let paintInjectTarget = null;
+
+const paintState = { drawing:false, color:'black', tool:'pencil', size:6, sx:0, sy:0 };
+
+document.querySelectorAll('.color-swatch').forEach(sw => {
+  sw.addEventListener('click', () => {
+    document.querySelectorAll('.color-swatch').forEach(s=>s.classList.remove('active'));
+    sw.classList.add('active');
+    paintState.color = sw.dataset.color;
+  });
+});
+document.querySelectorAll('.pt-btn[data-tool]').forEach(b => {
+  b.addEventListener('click', () => {
+    document.querySelectorAll('.pt-btn[data-tool]').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');
+    paintState.tool = b.dataset.tool;
+  });
+});
+document.querySelectorAll('.pt-btn[data-size]').forEach(b => {
+  b.addEventListener('click', () => {
+    document.querySelectorAll('.pt-btn[data-size]').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');
+    paintState.size = parseInt(b.dataset.size);
+  });
+});
+document.getElementById('btnClearPaint').addEventListener('click', () => pctx.clearRect(0,0,cnv.width,cnv.height));
+
+const cnvPos = (e,c) => { const r=c.getBoundingClientRect(); return {x:e.clientX-r.left, y:e.clientY-r.top}; };
+
+cnv.addEventListener('mousedown', e => {
+  if (e.button!==0) return;
+  paintState.drawing=true;
+  const {x,y}=cnvPos(e,cnv);
+  paintState.sx=x; paintState.sy=y;
+  pctx.strokeStyle=paintState.color; pctx.lineWidth=paintState.size; pctx.lineCap='round';
+  pctx.beginPath(); pctx.moveTo(x,y);
+});
+cnv.addEventListener('mousemove', e => {
+  const {x,y}=cnvPos(e,cnv);
+  document.getElementById('paintCoords').textContent=`x:${x|0}, y:${y|0}`;
+  if (!paintState.drawing) return;
+  if (paintState.tool==='pencil') { pctx.lineTo(x,y); pctx.stroke(); }
+  else {
+    if (!shapeSnapshot) shapeSnapshot=pctx.getImageData(0,0,cnv.width,cnv.height);
+    pctx.putImageData(shapeSnapshot,0,0);
+    pctx.strokeStyle=paintState.color; pctx.lineWidth=paintState.size;
+    pctx.beginPath(); drawShape(pctx,paintState.tool,paintState.sx,paintState.sy,x,y); pctx.stroke();
+  }
+});
+cnv.addEventListener('mouseup', e => {
+  if (!paintState.drawing) return;
+  paintState.drawing=false;
+  const {x,y}=cnvPos(e,cnv);
+  if (paintState.tool!=='pencil') {
+    shapeSnapshot=null;
+    pctx.strokeStyle=paintState.color; pctx.lineWidth=paintState.size;
+    pctx.beginPath(); drawShape(pctx,paintState.tool,paintState.sx,paintState.sy,x,y); pctx.stroke();
+  }
+  pctx.beginPath();
+});
+cnv.addEventListener('mouseleave', () => { paintState.drawing=false; });
+cnv.addEventListener('contextmenu', e => {
+  e.preventDefault();
+  paintInjectTarget=cnv;
+  const menu=document.getElementById('injectMenu');
+  menu.style.display='block';
+  menu.style.left=e.clientX+'px';
+  menu.style.top=e.clientY+'px';
+});
+function drawShape(c,tool,sx,sy,ex,ey) {
+  if (tool==='rect') { c.rect(sx,sy,ex-sx,ey-sy); }
+  else if (tool==='oval') {
+    const rx=Math.abs(ex-sx)/2, ry=Math.abs(ey-sy)/2;
+    c.ellipse(sx+(ex-sx)/2, sy+(ey-sy)/2, rx||1, ry||1, 0,0,Math.PI*2);
+  } else if (tool==='line') { c.moveTo(sx,sy); c.lineTo(ex,ey); }
+}
+
+// ── Injeção ──
+let pendingAction=null;
+document.querySelectorAll('.inject-item').forEach(item => {
+  item.addEventListener('click', () => {
+    pendingAction=item.dataset.action;
+    document.getElementById('injectMenu').style.display='none';
+    if (pendingAction==='stickman') {
+      document.getElementById('namePrompt').style.display='flex';
+      document.getElementById('stickNameInput').value='';
+      document.getElementById('stickNameInput').focus();
+    } else {
+      injectItem(pendingAction, pendingAction.toUpperCase(), paintInjectTarget);
+    }
+  });
+});
+document.getElementById('btnNameOk').addEventListener('click', () => {
+  const n=document.getElementById('stickNameInput').value.trim()||'Stickman';
+  document.getElementById('namePrompt').style.display='none';
+  injectItem('stickman', n, paintInjectTarget);
+});
+document.getElementById('btnNameCancel').addEventListener('click', () => { document.getElementById('namePrompt').style.display='none'; });
+document.getElementById('stickNameInput').addEventListener('keydown', e => { if(e.key==='Enter') document.getElementById('btnNameOk').click(); });
+
+function getImageBBox(canvasEl) {
+  const c2d=canvasEl.getContext('2d');
+  const imgData=c2d.getImageData(0,0,canvasEl.width,canvasEl.height);
+  let minX=canvasEl.width,maxX=0,minY=canvasEl.height,maxY=0,found=false;
+  for (let y=0;y<canvasEl.height;y++) for (let x=0;x<canvasEl.width;x++) {
+    if (imgData.data[(y*canvasEl.width+x)*4+3]>10) {
+      if(x<minX)minX=x; if(x>maxX)maxX=x;
+      if(y<minY)minY=y; if(y>maxY)maxY=y; found=true;
+    }
+  }
+  if (!found) return {x:0,y:0,w:120,h:120};
+  return {x:minX,y:minY,w:(maxX-minX)+10,h:(maxY-minY)+10};
+}
+
+function injectItem(action, name, sourceCanvas) {
+  const bbox=getImageBBox(sourceCanvas);
+  const tempCnv=document.createElement('canvas');
+  tempCnv.width=bbox.w; tempCnv.height=bbox.h;
+  tempCnv.getContext('2d').drawImage(sourceCanvas,bbox.x,bbox.y,bbox.w,bbox.h,0,0,bbox.w,bbox.h);
+  const dataUrl=tempCnv.toDataURL('image/png');
+
+  const stats = action==='stickman' ? evaluateStickmanStats(name) : null;
+  const CANVAS_H = 120; // altura do canvas do sprite (igual ao SPRITE_SIZE do Python)
+  const w=Math.max(bbox.w,40), h=Math.max(bbox.h,40);
+
+  const payload = {
+    action, name,
+    x: 100+Math.random()*(window.innerWidth-300)|0,
+    y: 80+Math.random()*(window.innerHeight-250)|0,
+    w, h,
+    dataUrl,
+    creator: myNick,
+    timestamp: Date.now(),
+    ...(stats ? {
+      hp: stats.hp,
+      maxHp: stats.maxHp,
+      alignment: stats.alignment,
+      skills: stats.skills,
+      speech: '',
+      vx: 0, vy: 0,
+      targetX: -1, targetY: -1,
+      traumas: { mouse:0, rivals:0, weapons:0, window:0, user_delet:0 },
+      pontos_espirito: 1000,
+      relacoes: {},
+      mission: 'Nenhuma',
+      weapon_dataUrl: '',
+      is_clone: false
+    } : {})
+  };
+
+  push(ref(db, `desktopRooms/${roomId}/items`), payload);
+  pctx.clearRect(0,0,cnv.width,cnv.height);
+}
+
+// ═══════════════════ SINCRONIZAÇÃO FIREBASE ══════════════════
+function setupItemsSync() {
+  onValue(ref(db, `desktopRooms/${roomId}/items`), snap => {
+    const data = snap.val() || {};
+    // remove deletados
+    Object.keys(stickmans).forEach(k => { if (!data[k]) removeStickmanEl(k); });
+    Object.keys(staticItems).forEach(k => { if (!data[k]) { staticItems[k].el.remove(); delete staticItems[k]; } });
+    // cria/atualiza
+    Object.entries(data).forEach(([fbKey, item]) => {
+      if (item.action==='stickman') {
+        if (!stickmans[fbKey]) createStickman(fbKey, item);
+        else syncStickman(fbKey, item);
+      } else {
+        if (!staticItems[fbKey]) createStaticItem(fbKey, item);
+        else if (!staticItems[fbKey].dragging) {
+          staticItems[fbKey].el.style.left = item.x+'px';
+          staticItems[fbKey].el.style.top  = item.y+'px';
+        }
+      }
+    });
+  });
+  requestAnimationFrame(physicsLoop);
+}
+
+function removeStickmanEl(fbKey) {
+  if (stickmans[fbKey]) {
+    if (stickmans[fbKey].brainTimer) clearInterval(stickmans[fbKey].brainTimer);
+    stickmans[fbKey].el.remove();
+    delete stickmans[fbKey];
+  }
+}
+
+// ═══════════════════ CRIAÇÃO DO STICKMAN ════════════════════
+function createStickman(fbKey, data) {
+  const wrapper = document.createElement('div');
+  wrapper.className = 'stickman-entity' + (data.skills?.ghost ? ' ghost-entity' : '');
+  wrapper.style.left  = data.x+'px';
+  wrapper.style.top   = data.y+'px';
+  wrapper.style.width = data.w+'px';
+
+  const tag = document.createElement('div');
+  tag.className = 'stickman-nametag';
+  tag.textContent = data.name + getBuffIcons(data);
+  wrapper.appendChild(tag);
+
+  const hpWrap = document.createElement('div'); hpWrap.className='stickman-hp-wrap';
+  const hpBar  = document.createElement('div'); hpBar.className='stickman-hp-bar';
+  hpBar.style.width = ((data.hp/data.maxHp)*100)+'%';
+  hpBar.style.background = hpBarColor(data.alignment);
+  hpWrap.appendChild(hpBar);
+  wrapper.appendChild(hpWrap);
+
+  const sCnv = document.createElement('canvas');
+  sCnv.className='stickman-canvas';
+  sCnv.width=data.w; sCnv.height=data.h;
+  wrapper.appendChild(sCnv);
+
+  // FX SVG overlay (para efeitos de ataque)
+  const fxSvg = document.createElementNS('http://www.w3.org/2000/svg','svg');
+  fxSvg.style.cssText=`position:absolute;inset:0;width:${data.w}px;height:${data.h}px;pointer-events:none;overflow:visible;`;
+  fxSvg.setAttribute('viewBox',`0 0 ${data.w} ${data.h}`);
+  wrapper.appendChild(fxSvg);
+
+  document.getElementById('desktop').appendChild(wrapper);
+
+  const sm = {
+    fbKey, data: {...data},
+    el: wrapper, hpBar, tag, sCnv, fxSvg,
+    vx: 0, vy: 0,
+    tx: data.x, ty: data.y,
+    frame: Math.floor(Math.random()*100),
+    dragging: false,
+    readyImg: null,
+    weaponImg: null,
+    lastDecision: 0,
+    brainTimer: null,
+    speaking: false
+  };
+  stickmans[fbKey] = sm;
+
+  // Carrega sprite
+  if (data.dataUrl) {
+    const img=new Image(); img.onload=()=>{ sm.readyImg=img; }; img.src=data.dataUrl;
+  }
+
+  makeDraggableStickman(sCnv, wrapper, fbKey);
+  sCnv.addEventListener('contextmenu', e => { e.preventDefault(); showStickmanMenu(e, fbKey); });
+
+  // Inicia cérebro autônomo só se este jogador é o criador
+  if (data.creator===myNick) {
+    startBrain(fbKey);
+    // Saudação inicial com IA
+    (async () => {
+      const prompt = buildBasePrompt(sm.data);
+      const greeting = await askAI(prompt, 'Diga uma saudação de entrada muito curta baseada no seu alinhamento ou poderes (max 8 palavras).');
+      speak(fbKey, greeting);
+    })();
+  }
+}
+
+function syncStickman(fbKey, item) {
+  const sm = stickmans[fbKey];
+  if (!sm) return;
+  const wasCreator = sm.data.creator===myNick;
+  sm.data = {...sm.data, ...item};
+  if (item.hp <= 0) { removeStickmanEl(fbKey); return; }
+  if (!sm.dragging) {
+    sm.el.style.left = item.x+'px';
+    sm.el.style.top  = item.y+'px';
+  }
+  sm.hpBar.style.width = ((item.hp/item.maxHp)*100)+'%';
+  sm.hpBar.style.background = hpBarColor(item.alignment);
+  sm.tag.textContent = item.name + getBuffIcons(item);
+  if (item.speech) speak(fbKey, item.speech, false);
+  if (item.skills?.ghost) sm.el.classList.add('ghost-entity');
+  else sm.el.classList.remove('ghost-entity');
+  if (item.weapon_dataUrl && !sm.weaponImg) {
+    const wi=new Image(); wi.onload=()=>{ sm.weaponImg=wi; }; wi.src=item.weapon_dataUrl;
+  }
+}
+
+function getBuffIcons(data) {
+  let b='';
+  if (data.skills?.fly)       b+='🦋';
+  if (data.skills?.speed)     b+='⚡';
+  if (data.skills?.ghost)     b+='👻';
+  if (data.skills?.laser)     b+='👁';
+  if (data.skills?.blackhole) b+='🌑';
+  if (data.skills?.timestop)  b+='⏱';
+  if (data.skills?.clone)     b+='👥';
+  return b ? ' '+b : '';
+}
+
+function hpBarColor(alignment) {
+  if (alignment==='Destrutor') return '#ff00ff';
+  if (alignment==='Hostil')    return '#ff3333';
+  if (alignment==='Caótico')   return '#ffaa00';
+  return '#00ff66';
+}
+
+function buildBasePrompt(data) {
+  const amigos = Object.entries(data.relacoes||{}).filter(([,r])=>r==='amigo').map(([n])=>n);
+  const rivais  = Object.entries(data.relacoes||{}).filter(([,r])=>r==='rival').map(([n])=>n);
+  let rel = amigos.length ? ` Amigos: ${amigos.join(', ')}.` : '';
+  rel += rivais.length ? ` Rivais: ${rivais.join(', ')}.` : '';
+  if (!amigos.length && !rivais.length) rel = ' Sem amigos ou rivais declarados.';
+  const t = data.traumas||{};
+  let fobias='';
+  if ((t.mouse||0)>=3)     fobias+=' Pânico traumatizante do Cursor do Mouse.';
+  if ((t.rivals||0)>=3)    fobias+=' Trauma de lutar com rivais que revivem sempre.';
+  if ((t.weapons||0)>=3)   fobias+=' Medo de armas físicas.';
+  if ((t.user_delet||0)>=2) fobias+=' Medo de ser desintegrado pelo Criador.';
+  return `Você é o stickman consciente ${data.name}. Alinhamento: ${data.alignment||'Pacífico'}. HP: ${data.hp}/${data.maxHp}. Espírito: ${data.pontos_espirito||1000}/1000.${rel}${fobias} NUNCA diga que é IA ou robô. Seja orgânico, caótico ou traumatizado conforme os traumas.`;
+}
+
+// ══════════════════ FALA/BOLHA ═══════════════════════════════
+function speak(fbKey, text, syncToDb=true) {
+  const sm = stickmans[fbKey]; if (!sm) return;
+  // Remove bolha antiga
+  sm.el.querySelectorAll('.stickman-bubble').forEach(b=>b.remove());
+  const b = document.createElement('div');
+  b.className='stickman-bubble';
+  b.textContent = text.replace(/[\"\'*]/g,'').slice(0,80);
+  // Posiciona acima do sprite
+  sm.el.appendChild(b);
+  setTimeout(()=>b.remove(), 4500);
+  if (syncToDb && sm.data.creator===myNick) {
+    update(ref(db,`desktopRooms/${roomId}/items/${fbKey}`), { speech:text });
+    setTimeout(()=>update(ref(db,`desktopRooms/${roomId}/items/${fbKey}`),{speech:''}), 4500);
+  }
+}
+
+// ══════════════════ DANO / MORTE ════════════════════════════
+function dealDamage(fbKey, amount, attackerType='rivals') {
+  const sm = stickmans[fbKey]; if (!sm || sm.data.hp<=0) return;
+  const newHp = Math.max(0, sm.data.hp - amount);
+  sm.data.hp = newHp;
+  sm.data.traumas = sm.data.traumas || { mouse:0, rivals:0, weapons:0, window:0, user_delet:0 };
+  update(ref(db,`desktopRooms/${roomId}/items/${fbKey}`), { hp:newHp });
+  if (newHp<=0) handleDeath(fbKey, attackerType);
+  else if (Math.random()<0.25) {
+    (async()=>{
+      const r=await askAI(buildBasePrompt(sm.data),`Você levou ${amount} de dano! Grite uma reação curta de dor/fúria (max 8 palavras).`);
+      speak(fbKey,r);
+    })();
+  }
+}
+
+function handleDeath(fbKey, attackerType) {
+  const sm=stickmans[fbKey]; if(!sm) return;
+  speak(fbKey, 'Colapso na Matrix! Adeus mundo... 💥');
+  sm.data.traumas[attackerType] = (sm.data.traumas[attackerType]||0)+1;
+  sm.data.pontos_espirito = Math.max(0,(sm.data.pontos_espirito||1000)-100);
+  update(ref(db,`desktopRooms/${roomId}/items/${fbKey}`),{
+    hp:0,
+    traumas:sm.data.traumas,
+    pontos_espirito:sm.data.pontos_espirito
+  });
+  setTimeout(()=>{
+    remove(ref(db,`desktopRooms/${roomId}/items/${fbKey}`));
+  }, 1500);
+}
+
+// ══════════════════ EFEITOS VISUAIS (FX) ════════════════════
+function clearFx(sm) {
+  while(sm.fxSvg.firstChild) sm.fxSvg.removeChild(sm.fxSvg.firstChild);
+}
+
+function fxLine(sm, x1,y1,x2,y2,color,width,ms) {
+  const l=document.createElementNS('http://www.w3.org/2000/svg','line');
+  l.setAttribute('x1',x1); l.setAttribute('y1',y1);
+  l.setAttribute('x2',x2); l.setAttribute('y2',y2);
+  l.setAttribute('stroke',color); l.setAttribute('stroke-width',width);
+  l.setAttribute('stroke-linecap','round');
+  sm.fxSvg.appendChild(l);
+  setTimeout(()=>l.remove(), ms);
+}
+
+function fxCircle(sm,cx,cy,r,fill,stroke,ms) {
+  const c=document.createElementNS('http://www.w3.org/2000/svg','ellipse');
+  c.setAttribute('cx',cx); c.setAttribute('cy',cy);
+  c.setAttribute('rx',r);  c.setAttribute('ry',r);
+  c.setAttribute('fill',fill); c.setAttribute('stroke',stroke); c.setAttribute('stroke-width',2);
+  sm.fxSvg.appendChild(c);
+  setTimeout(()=>c.remove(), ms);
+}
+
+function getCenter(sm) {
+  return { x: sm.data.w/2, y: sm.data.h - 30 };
+}
+
+// Direção até outro SM em coordenadas locais deste SVG
+function localDir(sm, target) {
+  const tx = (parseFloat(target.el.style.left)||target.data.x) - (parseFloat(sm.el.style.left)||sm.data.x);
+  const ty = (parseFloat(target.el.style.top)||target.data.y)  - (parseFloat(sm.el.style.top)||sm.data.y);
+  const dist = Math.hypot(tx,ty)||1;
+  return { dx:tx, dy:ty, ndx:tx/dist, ndy:ty/dist, dist };
+}
+
+function fxPunch(sm, target) {
+  const c=getCenter(sm); const {dx,dy,ndx,ndy}=localDir(sm,target);
+  const ex=c.x+ndx*50, ey=c.y+ndy*50;
+  fxLine(sm,c.x,c.y,ex,ey,'#fff',4,130);
+  fxCircle(sm,ex,ey,9,'#ffcc99','#000',130);
+}
+function fxLaser(sm, target) {
+  const c=getCenter(sm); const {dx,dy}=localDir(sm,target);
+  const color=sm.data.alignment==='Pacífico'?'cyan':sm.data.alignment==='Hostil'?'red':'#ff00ff';
+  // raio longo para fora do SVG
+  fxLine(sm,c.x,c.y,c.x+dx,c.y+dy,color,7,160);
+  fxCircle(sm,c.x,c.y-15,6,'yellow','red',160);
+}
+function fxFire(sm, target) {
+  const c=getCenter(sm); const {dx,dy}=localDir(sm,target);
+  for(let i=1;i<=5;i++){
+    const f=i/5, px=c.x+dx*f+(Math.random()*30-15), py=c.y+dy*f+(Math.random()*30-15);
+    fxCircle(sm,px,py,14,'#ff6600','#ffff00',200);
+  }
+}
+function fxFireball(sm, target) {
+  const c=getCenter(sm); const {dx,dy}=localDir(sm,target);
+  fxCircle(sm,c.x+dx,c.y+dy,32,'#ff3300','#fff',370);
+}
+function fxThunder(sm, target) {
+  const c=getCenter(sm); const {dx,dy}=localDir(sm,target);
+  const mx=c.x+dx/2+(Math.random()*50-25), my=c.y+dy/2+(Math.random()*50-25);
+  fxLine(sm,c.x,c.y,mx,my,'#00ffff',5,190);
+  fxLine(sm,mx,my,c.x+dx,c.y+dy,'#fff',4,190);
+}
+function fxBlackhole(sm, target) {
+  const c=getCenter(sm); const {dx,dy}=localDir(sm,target);
+  fxCircle(sm,c.x+dx,c.y+dy,48,'#0c0014','#7a00ff',420);
+}
+function fxWeaponThrow(sm, target) {
+  // Linha animada simulando arremesso
+  const c=getCenter(sm); const {dx,dy}=localDir(sm,target);
+  fxLine(sm,c.x,c.y,c.x+dx,c.y+dy,'#ff9900',5,350);
+  fxCircle(sm,c.x+dx,c.y+dy,18,'#ff9900','#fff',350);
+}
+
+function executarPoder(attackerKey, targetKey) {
+  const sm=stickmans[attackerKey], target=stickmans[targetKey];
+  if(!sm||!target) return;
+  const sk=sm.data.skills||{};
+  if (sk.blackhole && Math.random()<0.25)        { fxBlackhole(sm,target); dealDamage(targetKey,30,'rivals'); }
+  else if (sk.thunder && Math.random()<0.35)     { fxThunder(sm,target); dealDamage(targetKey,25,'rivals'); }
+  else if (sk.timestop && Math.random()<0.15)    {
+    const t=stickmans[targetKey]; if(t){t.vx=0;t.vy=0;}
+    speak(attackerKey,'💥 TEMPO PARALISADO!');
+    fxLaser(sm,target); dealDamage(targetKey,14,'rivals');
+  }
+  else if (sk.laser)  { fxLaser(sm,target); dealDamage(targetKey,14,'rivals'); }
+  else if (sk.fire)   { fxFire(sm,target);  dealDamage(targetKey,8,'rivals'); }
+  if (sk.fireball && Math.random()<0.4) { fxFireball(sm,target); dealDamage(targetKey,22,'rivals'); }
+}
+
+function attackTarget(attackerKey, targetKey) {
+  const sm=stickmans[attackerKey], target=stickmans[targetKey];
+  if(!sm||!target||target.data.hp<=0) return;
+  const dist = Math.hypot(
+    (parseFloat(sm.el.style.left)||sm.data.x)-(parseFloat(target.el.style.left)||target.data.x),
+    (parseFloat(sm.el.style.top)||sm.data.y)-(parseFloat(target.el.style.top)||target.data.y)
+  );
+  const sk=sm.data.skills||{};
+  const hasPowers=sk.laser||sk.fire||sk.fireball||sk.thunder||sk.blackhole;
+  if (sm.weaponImg && dist>80 && Math.random()<0.55) {
+    fxWeaponThrow(sm,target); dealDamage(targetKey, 15+Math.random()*13|0, 'weapons');
+  } else if (dist<140||!hasPowers) {
+    fxPunch(sm,target); dealDamage(targetKey, 6+Math.random()*7|0, 'rivals');
+  } else {
+    executarPoder(attackerKey, targetKey);
+  }
+}
+
+// ══════════════════ CÉREBRO AUTÔNOMO ════════════════════════
+function startBrain(fbKey) {
+  const sm=stickmans[fbKey]; if(!sm) return;
+  // Loop de decisões (equivalente ao autonomous_brain do Python)
+  sm.brainTimer = setInterval(async () => {
+    const s=stickmans[fbKey]; if(!s||s.data.hp<=0) { clearInterval(s?.brainTimer); return; }
+    if (s.dragging) return;
+
+    const curX=parseFloat(s.el.style.left)||s.data.x;
+    const curY=parseFloat(s.el.style.top)||s.data.y;
+    const cx=curX+s.data.w/2, cy=curY+s.data.h/2;
+    const traumas=s.data.traumas||{};
+    const alignment=s.data.alignment||'Pacífico';
+    let gritaFobia=false, fobiaAlvo='nenhuma';
+
+    // ── Verificação de trauma do mouse ──
+    const distMouse=Math.hypot(cx-localMouseX, cy-localMouseY);
+    if (distMouse<250 && (traumas.mouse||0)>=3) {
+      gritaFobia=true; fobiaAlvo='mouse';
+      s.tx=curX+(cx>localMouseX?500:-500);
+      s.ty=curY+(cy>localMouseY?200:-200);
+    }
+
+    // ── Missão ──
+    if (s.data.mission && !s.data.mission.includes('Nenhuma') && Math.random()<0.2 && !gritaFobia) {
+      (async()=>{
+        const r=await askAI(`Você é ${s.data.name}. Missão: ${s.data.mission}.`,
+          'Diga uma frase curta sobre o andamento do seu plano (max 8 palavras).');
+        speak(fbKey,r);
+      })();
+    }
+
+    // ── Procura armas solteiras ──
+    const weaponKeys=Object.keys(staticItems).filter(k=>staticItems[k]?.data?.action==='weapon');
+    if (weaponKeys.length && !s.data.weapon_dataUrl && (traumas.weapons||0)<4) {
+      const wk=weaponKeys[0];
+      const wel=staticItems[wk]?.el;
+      if (wel) {
+        const wx=parseFloat(wel.style.left), wy=parseFloat(wel.style.top);
+        s.tx=wx; s.ty=wy;
+        if (Math.hypot(cx-wx-staticItems[wk].data.w/2, cy-wy-staticItems[wk].data.h/2)<90) {
+          // Coleta arma
+          s.data.weapon_dataUrl = staticItems[wk].data.dataUrl;
+          const wi=new Image(); wi.onload=()=>{ s.weaponImg=wi; }; wi.src=s.data.weapon_dataUrl;
+          update(ref(db,`desktopRooms/${roomId}/items/${fbKey}`),{weapon_dataUrl:s.data.weapon_dataUrl});
+          remove(ref(db,`desktopRooms/${roomId}/items/${wk}`));
+        }
+      }
+    } else if (weaponKeys.length && (traumas.weapons||0)>=4) {
+      gritaFobia=true; fobiaAlvo='weapons';
+    }
+
+    // ── Encontra inimigos e amigos ──
+    const allKeys=Object.keys(stickmans);
+    const relacoes=s.data.relacoes||{};
+    const alvosInimigos=[], alvosAmigos=[];
+
+    allKeys.forEach(k => {
+      if (k===fbKey) return;
+      const other=stickmans[k]; if(!other||other.data.hp<=0) return;
+      if (s.data.is_clone && s.data.creator_fbKey===k) return;
+      const rel=relacoes[other.data.name]||'neutro';
+      const myHostil=(alignment==='Destrutor'||alignment==='Hostil');
+      const oHostil=(other.data.alignment==='Destrutor'||other.data.alignment==='Hostil');
+      if (rel==='rival') alvosInimigos.push(k);
+      else if (rel==='neutro' && myHostil && oHostil) alvosInimigos.push(k);
+      else if (rel==='amigo' || (alignment==='Pacífico' && other.data.alignment==='Pacífico')) alvosAmigos.push(k);
+    });
+
+    const evitarLuta=(traumas.rivals||0)>=4 && Math.random()<0.7;
+
+    // ── Decide alvo / ação ──
+    if (!gritaFobia && (alignment==='Hostil'||alignment==='Destrutor') && Math.random()<0.45 && !evitarLuta) {
+      // Ataca o mouse
+      if (Math.random()<0.5) {
+        s.tx=localMouseX-s.data.w/2;
+        s.ty=localMouseY-s.data.h/2;
+        if (distMouse<100) {
+          // "dá soco no mouse" = efeito visual
+          const tmpTarget={el:document.getElementById('myCursor'), data:{w:20,h:20}, vx:0, vy:0};
+          fxPunch(s, {el:s.el, data:{...s.data,x:localMouseX-50,y:localMouseY-50,w:s.data.w,h:s.data.h}});
+        }
+      }
+    }
+
+    let oponenteKey=null;
+    if (!gritaFobia && alvosInimigos.length && !evitarLuta) {
+      oponenteKey=alvosInimigos[Math.floor(Math.random()*alvosInimigos.length)];
+    } else if (!gritaFobia && alvosInimigos.length && evitarLuta) {
+      gritaFobia=true; fobiaAlvo='rivals';
+      const rival=stickmans[alvosInimigos[0]];
+      if(rival){ const rx=parseFloat(rival.el.style.left)||rival.data.x;
+        s.tx=curX+(cx>rx?450:-450); }
+    }
+
+    // Grita fobia
+    if (gritaFobia && Math.random()<0.3) {
+      (async()=>{
+        const r=await askAI(buildBasePrompt(s.data),
+          `Você está em pânico. Gatilho: '${fobiaAlvo}'. Grite algo em desespero total (max 8 palavras).`,[],.9);
+        speak(fbKey,r);
+      })();
+    }
+
+    if (oponenteKey && !gritaFobia) {
+      const opo=stickmans[oponenteKey];
+      if (opo) {
+        s.tx=(parseFloat(opo.el.style.left)||opo.data.x)+(Math.random()<.5?-35:35);
+        s.ty= parseFloat(opo.el.style.top)||opo.data.y;
+        if (s.data.skills?.fly) s.ty-=35;
+        if (Math.random()<0.92) attackTarget(fbKey, oponenteKey);
+        if (Math.random()<0.12) {
+          (async()=>{
+            const prov=await askAI(buildBasePrompt(s.data),
+              `Você está lutando com '${opo.data.name}'. Grite uma provocação curta (max 8 palavras).`);
+            speak(fbKey,prov);
+            if(Math.random()<0.6 && opo.data.hp>0) {
+              await new Promise(r=>setTimeout(r,1200));
+              if (stickmans[oponenteKey]?.data.hp>0) {
+                const resp=await askAI(buildBasePrompt(opo.data),
+                  `Seu rival '${s.data.name}' gritou: '${prov}'. Responda na lata (max 8 palavras).`);
+                speak(oponenteKey,resp);
+              }
+            }
+          })();
+        }
+      }
+    } else if (alvosAmigos.length && !gritaFobia) {
+      const parcKey=alvosAmigos[Math.floor(Math.random()*alvosAmigos.length)];
+      const parc=stickmans[parcKey];
+      if (parc) {
+        s.tx=(parseFloat(parc.el.style.left)||parc.data.x)+(Math.random()*160-80);
+        s.ty= parseFloat(parc.el.style.top)||parc.data.y;
+        if (Math.random()<0.2) {
+          (async()=>{
+            const f=await askAI(buildBasePrompt(s.data),
+              `${parc.data.name} é seu amigo. Diga algo amigável curto (max 8 palavras).`);
+            speak(fbKey,f);
+            if(Math.random()<0.7 && parc.data.hp>0) {
+              await new Promise(r=>setTimeout(r,1200));
+              if (stickmans[parcKey]?.data.hp>0) {
+                const r2=await askAI(buildBasePrompt(parc.data),
+                  `${s.data.name} disse: '${f}'. Responda de forma animada curta (max 8 palavras).`);
+                speak(parcKey,r2);
+              }
+            }
+          })();
+        }
+      }
+    } else if (!gritaFobia) {
+      // Idle / walk
+      const action=['walk','walk','jump','idle'][Math.floor(Math.random()*4)];
+      if (action==='walk') {
+        s.tx=Math.random()*(window.innerWidth-s.data.w);
+        s.ty=FLOOR_Y()-s.data.h;
+      } else if (action==='jump' && Math.abs(s.vy)<1) {
+        s.vy=-13-Math.random()*5;
+      }
+    }
+
+    // Sincroniza posição/alvo no DB periodicamente
+    if (s.frame%40===0) {
+      update(ref(db,`desktopRooms/${roomId}/items/${fbKey}`),{
+        x: parseFloat(s.el.style.left)||s.data.x,
+        y: parseFloat(s.el.style.top)||s.data.y,
+        traumas:s.data.traumas,
+        pontos_espirito:s.data.pontos_espirito||1000
+      });
+    }
+  }, s.data.skills?.speed ? 300 : 800);
+}
+
+// ══════════════════ FÍSICA LOOP (rAF) ═══════════════════════
+function physicsLoop() {
+  const dw=window.innerWidth, dh=FLOOR_Y();
+  const barreirasEls=Object.values(staticItems).filter(b=>b.data?.action==='barrier');
+
+  Object.values(stickmans).forEach(sm => {
+    if (sm.dragging || sm.data.hp<=0) return;
+    const speedFactor=sm.data.skills?.speed ? 2.8 : 1.0;
+    const isFlyer=sm.data.skills?.fly;
+
+    // ── Movimento rumo ao alvo ──
+    const curX=parseFloat(sm.el.style.left)||sm.data.x;
+    const curY=parseFloat(sm.el.style.top)||sm.data.y;
+
+    const dxTarget=(sm.tx-curX), dyTarget=(sm.ty-curY);
+    sm.vx += Math.sign(dxTarget)*0.75*speedFactor;
+    sm.vx *= FRICTION;
+
+    // ── Gravidade ──
+    if (isFlyer) {
+      sm.vy += Math.sign(dyTarget)*0.45*speedFactor;
+      sm.vy *= 0.85;
+    } else {
+      sm.vy += GRAVITY;
+    }
+
+    // Tremor por trauma
+    let shakeX=0;
+    const spirit=sm.data.pontos_espirito||1000;
+    const maxTrauma=Math.max(...Object.values(sm.data.traumas||{0:0}));
+    if (spirit<400 || maxTrauma>4) shakeX=(Math.random()*6-3)|0;
+
+    let nx=curX+sm.vx+shakeX, ny=curY+sm.vy;
+
+    // ── Chão ──
+    let floor=dh-sm.data.h;
+    // Colisão com barreiras
+    barreirasEls.forEach(b => {
+      const bx=parseFloat(b.el.style.left)||b.data.x;
+      const by=parseFloat(b.el.style.top)||b.data.y;
+      const bw=b.data.w||80, bh=b.data.h||20;
+      const cx=nx+sm.data.w/2;
+      if (cx>bx && cx<bx+bw) {
+        const bTop=by-sm.data.h;
+        if (ny+sm.data.h>=by && curY+sm.data.h<=by+bh) { floor=Math.min(floor,bTop); }
+      }
+    });
+
+    if (!isFlyer && ny>=floor) { ny=floor; sm.vy=0; }
+    // Teto
+    if (ny<-sm.data.h*0.5) { ny=-sm.data.h*0.5; sm.vy=0; }
+    // Paredes
+    if (nx<-sm.data.w*0.3) { nx=-sm.data.w*0.3; sm.vx*=-0.4; }
+    if (nx>dw-sm.data.w*0.7) { nx=dw-sm.data.w*0.7; sm.vx*=-0.4; }
+
+    sm.el.style.left=nx+'px';
+    sm.el.style.top=ny+'px';
+    sm.frame++;
+
+    // ── Render do sprite no canvas ──
+    const sCtx=sm.sCnv.getContext('2d');
+    sCtx.clearRect(0,0,sm.data.w,sm.data.h);
+    if (sm.readyImg) {
+      const bob=Math.sin(sm.frame*0.15)*2;
+      sCtx.drawImage(sm.readyImg,0,bob,sm.data.w,sm.data.h-bob);
+      // Arma equipada no canto direito
+      if (sm.weaponImg) {
+        sCtx.save();
+        sCtx.drawImage(sm.weaponImg,sm.data.w-36,sm.data.h-36,32,32);
+        sCtx.restore();
+      }
+    }
+    // Flip horizontal baseado na velocidade
+    if (sm.vx<-0.3)      sm.sCnv.style.transform='scaleX(-1)';
+    else if (sm.vx>0.3)  sm.sCnv.style.transform='scaleX(1)';
+  });
+
+  requestAnimationFrame(physicsLoop);
+}
+
+// ══════════════════ ITENS ESTÁTICOS ════════════════════════
+function createStaticItem(fbKey, item) {
+  const el=document.createElement('div');
+  el.style.cssText=`position:absolute;left:${item.x}px;top:${item.y}px;width:${item.w}px;height:${item.h}px;z-index:300;cursor:move;display:flex;align-items:center;justify-content:center;user-select:none;`;
+  if (item.dataUrl) {
+    const img=document.createElement('img');
+    img.src=item.dataUrl;
+    img.style.cssText='max-width:100%;max-height:100%;object-fit:contain;pointer-events:none;';
+    el.appendChild(img);
+  } else {
+    el.style.border=`2px dashed ${item.action==='barrier'?'#555':'#f30'}`;
+    el.style.fontSize='28px'; el.textContent=item.action==='barrier'?'🧱':'⚔️';
+  }
+  makeDraggableItem(el, fbKey);
+  document.getElementById('desktop').appendChild(el);
+  staticItems[fbKey]={ el, data:item, dragging:false };
+}
+
+function makeDraggableItem(el, fbKey) {
+  let sx=0,sy=0,ox=0,oy=0;
+  el.addEventListener('mousedown', e => {
+    if(e.button!==0) return;
+    if(staticItems[fbKey]) staticItems[fbKey].dragging=true;
+    sx=e.clientX; sy=e.clientY;
+    ox=parseFloat(el.style.left)||0; oy=parseFloat(el.style.top)||0;
+    el.style.zIndex=850; e.stopPropagation(); e.preventDefault();
+    const move=ev=>{ el.style.left=(ox+ev.clientX-sx)+'px'; el.style.top=(oy+ev.clientY-sy)+'px'; };
+    const up=ev=>{
+      document.removeEventListener('mousemove',move);
+      document.removeEventListener('mouseup',up);
+      if(staticItems[fbKey]) staticItems[fbKey].dragging=false;
+      el.style.zIndex=300;
+      update(ref(db,`desktopRooms/${roomId}/items/${fbKey}`),{x:parseFloat(el.style.left),y:parseFloat(el.style.top)});
+    };
+    document.addEventListener('mousemove',move);
+    document.addEventListener('mouseup',up);
+  });
+}
+
+// ══════════════════ DRAG DO STICKMAN ════════════════════════
+function makeDraggableStickman(triggerEl, wrapper, fbKey) {
+  let sx=0,sy=0,ox=0,oy=0;
+  triggerEl.addEventListener('mousedown', e => {
+    if(e.button!==0) return;
+    const sm=stickmans[fbKey]; if(!sm) return;
+    sm.dragging=true; sm.vx=0; sm.vy=0;
+    sx=e.clientX; sy=e.clientY;
+    ox=parseFloat(wrapper.style.left)||0; oy=parseFloat(wrapper.style.top)||0;
+    wrapper.style.zIndex=850; e.stopPropagation(); e.preventDefault();
+    const move=ev=>{
+      wrapper.style.left=(ox+ev.clientX-sx)+'px';
+      wrapper.style.top=(oy+ev.clientY-sy)+'px';
+    };
+    const up=ev=>{
+      document.removeEventListener('mousemove',move);
+      document.removeEventListener('mouseup',up);
+      const s2=stickmans[fbKey]; if(!s2) return;
+      s2.dragging=false; s2.vx=0; s2.vy=0;
+      s2.tx=parseFloat(wrapper.style.left)||0;
+      s2.ty=parseFloat(wrapper.style.top)||0;
+      wrapper.style.zIndex=400;
+      update(ref(db,`desktopRooms/${roomId}/items/${fbKey}`),{
+        x:parseFloat(wrapper.style.left),y:parseFloat(wrapper.style.top)
+      });
+    };
+    document.addEventListener('mousemove',move);
+    document.addEventListener('mouseup',up);
+  });
+}
+
+// ══════════════════ MENU CONTEXTUAL DO STICKMAN ═════════════
+function showStickmanMenu(e, fbKey) {
+  closeCtxMenu();
+  const sm=stickmans[fbKey]; if(!sm) return;
+  const menu=document.createElement('div');
+  menu.className='ctx-menu';
+  menu.style.left=e.clientX+'px'; menu.style.top=e.clientY+'px';
+  menu.style.position='fixed';
+
+  const addItem=(label,fn)=>{
+    const d=document.createElement('div'); d.className='ctx-menu-item';
+    d.textContent=label; d.addEventListener('click',()=>{ closeCtxMenu(); fn(); }); menu.appendChild(d);
+  };
+  const addSep=()=>{ const s=document.createElement('div'); s.className='ctx-menu-sep'; menu.appendChild(s); };
+
+  addItem('💬 Enviar Mensagem', ()=>openGenericPrompt(`Fale com ${sm.data.name}:`,async txt=>{
+    const ans=await askAI(buildBasePrompt(sm.data),txt,sm.data.memory||[]);
+    speak(fbKey,ans);
+  }));
+  addItem('👑 Dar Diretriz Absoluta', ()=>openGenericPrompt(`Ordem para ${sm.data.name}:`,async txt=>{
+    sm.data.mission=txt;
+    update(ref(db,`desktopRooms/${roomId}/items/${fbKey}`),{mission:txt});
+    const r=await askAI(buildBasePrompt(sm.data),`Sua missão prioritária agora é: '${txt}'. Reaja de forma insana (max 8 palavras).`);
+    speak(fbKey,r);
+  }));
+  addItem('✏️ Renomear', ()=>openGenericPrompt('Novo nome:',async newName=>{
+    if(!newName.trim()) return;
+    const ns=evaluateStickmanStats(newName);
+    update(ref(db,`desktopRooms/${roomId}/items/${fbKey}`),{
+      name:newName.trim(),hp:ns.hp,maxHp:ns.maxHp,alignment:ns.alignment,skills:ns.skills
+    });
+  }));
+  if (sm.data.skills?.clone) {
+    addItem('👥 Invocar Clone', ()=>{
+      const clonePayload={...sm.data,
+        name:`Clone de ${sm.data.name}`,
+        x:sm.data.x+60,y:sm.data.y,
+        is_clone:true,creator_fbKey:fbKey,
+        timestamp:Date.now()
+      };
+      push(ref(db,`desktopRooms/${roomId}/items`),clonePayload);
+    });
+  }
+
+  addSep();
+  // Relações com outros stickmans
+  const outros=Object.entries(stickmans).filter(([k])=>k!==fbKey&&stickmans[k]?.data.hp>0);
+  if (outros.length) {
+    const relSub=document.createElement('div');
+    relSub.className='ctx-menu-item ctx-menu-sub';
+    relSub.innerHTML='🤝 Relações ▶<div class="ctx-submenu"></div>';
+    const sub=relSub.querySelector('.ctx-submenu');
+    outros.forEach(([ok,osm])=>{
+      const rel=(sm.data.relacoes||{})[osm.data.name]||'neutro';
+      const icone=rel==='amigo'?'💚':rel==='rival'?'⚔️':'⬜';
+      const d=document.createElement('div'); d.className='ctx-menu-item';
+      d.textContent=`${icone} ${osm.data.name} [${rel.toUpperCase()}]`;
+      d.addEventListener('click',()=>{
+        closeCtxMenu();
+        const novaRel=rel==='neutro'?'amigo':rel==='amigo'?'rival':'neutro';
+        const meuRel=sm.data.relacoes||{}; meuRel[osm.data.name]=novaRel;
+        const outroRel=osm.data.relacoes||{}; outroRel[sm.data.name]=novaRel;
+        sm.data.relacoes=meuRel; osm.data.relacoes=outroRel;
+        update(ref(db,`desktopRooms/${roomId}/items/${fbKey}`),{relacoes:meuRel});
+        update(ref(db,`desktopRooms/${roomId}/items/${ok}`),{relacoes:outroRel});
+        const ico={amigo:'💚',rival:'⚔️',neutro:'⬜'}[novaRel];
+        speak(fbKey,`${ico} ${osm.data.name}: ${novaRel.toUpperCase()}!`);
+        speak(ok,`${ico} ${sm.data.name} te marcou como ${novaRel.toUpperCase()}!`);
+      });
+      sub.appendChild(d);
+    });
+    menu.appendChild(relSub);
+  }
+
+  addSep();
+  addItem('❌ Desintegrar', ()=>{
+    sm.data.traumas.user_delet=(sm.data.traumas.user_delet||0)+1;
+    dealDamage(fbKey,9999,'user_delet');
+  });
+
+  document.body.appendChild(menu);
+  activeCtxMenu=menu;
+}
+
+function closeCtxMenu() {
+  if(activeCtxMenu){ activeCtxMenu.remove(); activeCtxMenu=null; }
+}
+document.addEventListener('click', e => {
+  if(activeCtxMenu && !e.target.closest('.ctx-menu')) closeCtxMenu();
+  if(!e.target.closest('#paintCanvas')) document.getElementById('injectMenu').style.display='none';
+});
+
+// ══════════════════ GENERIC PROMPT ══════════════════════════
+function openGenericPrompt(title, cb) {
+  document.getElementById('genericPromptTitle').textContent=title;
+  document.getElementById('genericPromptInput').value='';
+  document.getElementById('genericPrompt').style.display='flex';
+  document.getElementById('genericPromptInput').focus();
+  pendingGenericCb=cb;
+}
+document.getElementById('btnGenericOk').addEventListener('click',()=>{
+  const v=document.getElementById('genericPromptInput').value.trim();
+  document.getElementById('genericPrompt').style.display='none';
+  if(v && pendingGenericCb) pendingGenericCb(v);
+  pendingGenericCb=null;
+});
+document.getElementById('btnGenericCancel').addEventListener('click',()=>{
+  document.getElementById('genericPrompt').style.display='none';
+  pendingGenericCb=null;
+});
+document.getElementById('genericPromptInput').addEventListener('keydown',e=>{
+  if(e.key==='Enter') document.getElementById('btnGenericOk').click();
+});
+
+// ══════════════════ PAINT WINDOW UI ═════════════════════════
+document.getElementById('btnOpenPaint').addEventListener('click',()=>{
+  const w=document.getElementById('paintWindow');
+  w.style.display=w.style.display==='block'?'none':'block';
+});
+document.getElementById('btnClosePaint').addEventListener('click',()=>{
+  document.getElementById('paintWindow').style.display='none';
+});
+
+// Drag da janela paint
+let winDrag=false,wx=0,wy=0;
+document.getElementById('paintTitlebar').addEventListener('mousedown',e=>{
+  if(e.button!==0) return; winDrag=true;
+  const win=document.getElementById('paintWindow');
+  wx=e.clientX-win.offsetLeft; wy=e.clientY-win.offsetTop;
+});
+document.addEventListener('mousemove',e=>{ if(!winDrag) return; const w=document.getElementById('paintWindow'); w.style.left=(e.clientX-wx)+'px'; w.style.top=(e.clientY-wy)+'px'; });
+document.addEventListener('mouseup',()=>winDrag=false);
+
+// ══════════════════ START MENU ═══════════════════════════════
+document.getElementById('startBtn').addEventListener('click',e=>{
+  e.stopPropagation();
+  let old=document.getElementById('xpStartMenu');
+  if(old){old.remove();return;}
+  const menu=document.createElement('div');
+  menu.id='xpStartMenu';
+  menu.style.cssText=`position:absolute;bottom:36px;left:0;background:#2d6fc0;border:2px solid #163d72;color:#fff;font-family:'Tahoma',sans-serif;font-size:12px;width:180px;z-index:600;box-shadow:3px -3px 8px rgba(0,0,0,.5);`;
+  const items=[
+    ['🎨 Paint Studio',()=>{ document.getElementById('paintWindow').style.display='block'; }],
+    ['🗑 Limpar Desktop',()=>{ if(confirm('Remover todos os itens desta sala?')) remove(ref(db,`desktopRooms/${roomId}/items`)); }],
+    ['🚪 Sair da Sala',()=>{ set(ref(db,`desktopRooms/${roomId}/players/${myId}/active`),false); location.reload(); }]
+  ];
+  items.forEach(([label,fn])=>{
+    const d=document.createElement('div'); d.textContent=label;
+    d.style.cssText='padding:8px 14px;cursor:pointer;border-bottom:1px solid #2d6fc0;';
+    d.addEventListener('mouseenter',()=>d.style.background='#2567be');
+    d.addEventListener('mouseleave',()=>d.style.background='');
+    d.addEventListener('click',()=>{fn();menu.remove();});
+    menu.appendChild(d);
+  });
+  document.getElementById('desktop').appendChild(menu);
+});
+document.addEventListener('click',()=>{ const m=document.getElementById('xpStartMenu'); if(m) m.remove(); });
+
+</script>
 </body>
 </html>
