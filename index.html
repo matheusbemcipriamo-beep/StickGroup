@@ -1,604 +1,547 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Stickman Desktop - Multiplayer Host Authority</title>
-<style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Desktop Sandbox Multiplayer</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+    body, html { width: 100%; height: 100%; overflow: hidden; background: #333; font-family: sans-serif; }
+    #desktop { width: 100%; height: 100%; position: relative; background: #1a1a1a; overflow: hidden; }
+    
+    /* Barra de Tarefas estilo Windows */
+    #taskbar {
+      position: absolute; bottom: 0; left: 0; width: 100%; height: 36px;
+      background: #222; border-top: 1px solid #444; display: flex; align-items: center; padding: 0 10px; z-index: 9999;
+    }
+    .start-btn { background: #0078d7; color: white; border: none; padding: 4px 12px; font-weight: bold; cursor: pointer; }
+    
+    /* Elementos do Sandbox */
+    .cursor-replica {
+      position: absolute; width: 14px; height: 14px;
+      background: radial-gradient(circle, red 0%, transparent 70%);
+      pointer-events: none; z-index: 9998; font-size: 10px; color: #fff; white-space: nowrap;
+    }
+    .cursor-label { position: absolute; top: 15px; left: 10px; background: rgba(0,0,0,0.6); padding: 2px 4px; border-radius: 3px; }
 
-  /* ── LOBBY ── */
-  #lobbyScreen {
-    position: fixed; inset: 0;
-    background: #0a0a12;
-    display: flex; flex-direction: column;
-    align-items: center; justify-content: center;
-    font-family: 'Courier New', monospace;
-    color: #d3d3d3;
-    z-index: 999;
-  }
-  #lobbyScreen h1 {
-    font-size: 32px; color: #ffcc00;
-    text-transform: uppercase; letter-spacing: 4px;
-    text-shadow: 0 0 18px #ff990066;
-    margin-bottom: 6px;
-  }
-  #lobbyScreen p.sub { font-size: 12px; color: #666; margin-bottom: 30px; }
-  .lobby-box {
-    background: #141414; border: 2px solid #ff9900;
-    box-shadow: 0 0 30px #ff990033; padding: 30px 40px;
-    width: 380px; text-align: center;
-  }
-  .lobby-box input {
-    width: 100%; padding: 10px; background: #0a0a0a;
-    border: 1px solid #444; color: #00ffff;
-    font-family: inherit; font-size: 14px; margin-bottom: 12px;
-  }
-  .lobby-box input:focus { outline: none; border-color: #ff9900; }
-  .lobby-box label { font-size: 11px; color: #888; display: block; text-align: left; margin-bottom: 4px; }
-  .btn-main {
-    width: 100%; padding: 12px; background: #ff9900; color: #111;
-    border: none; font-weight: bold; font-size: 14px;
-    cursor: pointer; text-transform: uppercase; letter-spacing: 1px; margin-top: 6px;
-  }
-  .btn-main:hover { background: #ffcc00; }
-  .btn-main.red { background: #444; color: #ccc; margin-top: 8px; }
-  .btn-main.red:hover { background: #555; }
-  #lobbyStatus { margin-top: 16px; font-size: 12px; color: #ff9900; min-height: 18px; }
-  #playerList { margin-top: 12px; text-align: left; max-height: 120px; overflow-y: auto; }
-  .player-entry { font-size: 12px; padding: 4px 6px; border-bottom: 1px solid #1a1a1a; color: #00ffff; }
-  .player-entry.me { color: #00ff66; font-weight: bold; }
-  .player-entry.host { color: #ffcc00; }
+    .stickman-container { position: absolute; pointer-events: auto; cursor: grab; z-index: 100; display: flex; flex-direction: column; align-items: center; }
+    .stickman-container:active { cursor: grabbing; }
+    .speech-bubble {
+      background: white; border: 2px solid black; border-radius: 8px; padding: 4px 8px;
+      font-size: 12px; font-weight: bold; max-width: 150px; text-align: center; margin-bottom: 4px;
+      position: relative; word-wrap: break-word; color: black;
+    }
+    .hp-bar-bg { width: 100%; height: 5px; background: red; border: 1px solid #000; margin-top: 2px; }
+    .hp-bar-fill { height: 100%; background: #0f0; width: 100%; transition: width 0.1s ease; }
+    .stickman-name { font-size: 11px; color: white; background: rgba(0,0,0,0.5); padding: 1px 3px; border-radius: 3px; }
 
-  /* ── DESKTOP ── */
-  #desktop { display: none; position: fixed; inset: 0; overflow: hidden; cursor: none; }
-  #desktopBg { position: absolute; inset: 0; background: url('https://upload.wikimedia.org/wikipedia/en/8/8e/Windowsxp.png') center/cover no-repeat; }
-  
-  /* Taskbar */
-  #taskbar {
-    position: absolute; bottom: 0; left: 0; right: 0; height: 36px;
-    background: linear-gradient(to bottom, #1f5fa6, #163d72);
-    border-top: 2px solid #3a7bd5; display: flex; align-items: center;
-    padding: 0 8px; gap: 8px; z-index: 500;
-  }
-  #startBtn {
-    background: #3c8a3c; color: #fff; border: 1px solid #5ab55a;
-    padding: 3px 12px 3px 8px; font-weight: bold; font-size: 13px;
-    cursor: pointer; border-radius: 2px; font-family: 'Tahoma', sans-serif;
-    display: flex; align-items: center; gap: 4px;
-  }
-  #taskbarTime { margin-left: auto; color: #fff; font-family: 'Tahoma', sans-serif; font-size: 12px; padding: 2px 6px; background: #1a5ea8; border: 1px solid #2d6fc0; }
-  .taskbar-btn { background: #1a5ea8; color: #fff; border: 1px solid #2d6fc0; padding: 3px 10px; font-size: 11px; cursor: pointer; font-family: 'Tahoma', sans-serif; }
-  .taskbar-btn:hover { background: #2567be; }
-
-  /* Cursors */
-  #myCursor { position: absolute; width: 20px; height: 20px; pointer-events: none; z-index: 9999; transform: translate(-2px,-2px); }
-  #myCursor svg { width: 20px; height: 20px; }
-  .remote-cursor { position: absolute; pointer-events: none; z-index: 9998; transform: translate(-2px,-2px); transition: left 0.1s, top 0.1s; }
-  .remote-cursor svg { width: 20px; height: 20px; }
-  .remote-cursor-label { position: absolute; top: -16px; left: 18px; background: #000; color: #00ffff; font-size: 10px; padding: 1px 4px; border: 1px solid #00ffff; font-family: 'Courier New', monospace; white-space: nowrap; }
-
-  /* Stickman Entity */
-  .stickman-entity { position: absolute; pointer-events: none; z-index: 400; text-align: center; }
-  .stickman-canvas { display: block; pointer-events: all; cursor: grab; }
-  .stickman-canvas:active { cursor: grabbing; }
-  .stickman-nametag { font-family: 'Courier New', monospace; font-size: 10px; font-weight: bold; color: #00ffff; background: #111; border: 1px solid #00ffff; padding: 1px 5px; display: inline-block; margin-bottom: 2px; }
-  .stickman-hp-wrap { width: 80px; height: 7px; background: #222; border: 1px solid #555; margin: 2px auto 0; }
-  .stickman-hp-bar { height: 100%; background: #00ff66; transition: width 0.2s, background-color 0.2s; }
-  .stickman-bubble {
-    position: absolute; background: #fff; color: #000; border: 2px solid #000; border-radius: 6px;
-    font-family: 'Arial', sans-serif; font-size: 11px; font-weight: bold; padding: 4px 8px;
-    max-width: 160px; white-space: normal; top: -44px; left: 50%; transform: translateX(-50%);
-    z-index: 10; animation: bubbleFade 4s forwards; pointer-events: none;
-  }
-  @keyframes bubbleFade { 0%,80% { opacity:1; } 100% { opacity:0; } }
-
-  /* Windows */
-  #paintWindow { position: absolute; top: 60px; left: 60px; width: 560px; background: #ece9d8; border: 2px solid #0054a0; box-shadow: 4px 4px 12px rgba(0,0,0,0.5); z-index: 600; display: none; font-family: 'Tahoma', sans-serif; user-select: none; }
-  .win-titlebar { background: linear-gradient(to right, #0054a0, #2b7bdd); color: #fff; padding: 4px 8px; display: flex; justify-content: space-between; align-items: center; font-size: 12px; font-weight: bold; cursor: move; }
-  .win-controls { display: flex; gap: 2px; }
-  .win-btn { width: 16px; height: 14px; background: #d9d9d9; border: 1px solid #888; font-size: 10px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; line-height: 1; color: #000; }
-  .win-btn:hover { background: #fff; }
-  .win-btn.close-btn:hover { background: #e05; color: #fff; }
-  #paintToolbar { background: #ece9d8; border-bottom: 1px solid #aaa; padding: 4px 6px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
-  .pt-label { font-size: 11px; color: #444; font-weight: bold; }
-  .color-swatch { width: 20px; height: 20px; border: 2px solid #888; cursor: pointer; }
-  .color-swatch.active, .color-swatch:hover { border-color: #000; transform: scale(1.2); }
-  .pt-btn { background: #d4d0c8; border: 1px solid #999; padding: 2px 8px; font-size: 11px; cursor: pointer; font-family: inherit; }
-  .pt-btn.active { background: #b0cce0; border-color: #0054a0; }
-  #paintCanvas { display: block; cursor: crosshair; background: #fff; }
-  #paintStatusBar { background: #ece9d8; border-top: 1px solid #aaa; padding: 2px 8px; font-size: 11px; color: #444; display: flex; gap: 20px; }
-  
-  /* Context Menus */
-  .context-menu { position: absolute; background: #ece9d8; border: 1px solid #aaa; z-index: 9999; display: none; font-family: 'Tahoma', sans-serif; box-shadow: 2px 2px 6px rgba(0,0,0,0.3); }
-  .menu-item { padding: 6px 16px; font-size: 12px; cursor: pointer; border-bottom: 1px solid #ddd; }
-  .menu-item:hover { background: #0054a0; color: #fff; }
-  .menu-item.red:hover { background: #cc0000; color: #fff; }
-
-  /* UI Overlays */
-  .prompt-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: none; align-items: center; justify-content: center; z-index: 2000; }
-  .prompt-box { background: #ece9d8; border: 2px solid #0054a0; padding: 16px 20px; width: 280px; font-family: 'Tahoma', sans-serif; }
-  .prompt-box h3 { font-size: 13px; margin-bottom: 10px; }
-  .prompt-box input { width: 100%; padding: 5px; border: 1px solid #888; font-family: inherit; font-size: 13px; margin-bottom: 10px; }
-  .prompt-box .prompt-btns { display: flex; gap: 8px; justify-content: flex-end; }
-  .prompt-box button { background: #d4d0c8; border: 1px solid #888; padding: 4px 16px; cursor: pointer; font-family: inherit; font-size: 12px; }
-  .prompt-box button.ok { background: #0054a0; color: #fff; border-color: #003a80; }
-
-  #connIndicator { position: absolute; top: 8px; right: 12px; font-family: 'Courier New', monospace; font-size: 11px; z-index: 600; display: flex; align-items: center; gap: 5px; background: rgba(0,0,0,0.6); padding: 3px 8px; border-radius: 3px; color: #00ff66; }
-  .conn-dot { width: 8px; height: 8px; border-radius: 50%; background: #00ff66; animation: blink 1.5s infinite; }
-  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.2} }
-  #hostBadge { position: absolute; top: 8px; left: 12px; font-family: 'Courier New', monospace; font-size: 12px; font-weight: bold; z-index: 600; background: rgba(0,0,0,0.8); padding: 4px 10px; border-radius: 3px; color: #ffcc00; border: 1px solid #ffcc00; display: none; }
-</style>
+    /* Janelas Falsas do Sistema */
+    .window {
+      position: absolute; width: 300px; height: 200px; background: #f0f0f0; border: 1px solid #666;
+      box-shadow: 2px 2px 10px rgba(0,0,0,0.5); display: none; flex-direction: column; z-index: 500;
+    }
+    .window-header { background: #0078d7; color: white; padding: 4px 8px; display: flex; justify-content: space-between; align-items: center; cursor: move; }
+    .window-close { background: red; color: white; border: none; width: 20px; height: 20px; cursor: pointer; }
+    .window-body { flex: 1; padding: 10px; overflow: auto; color: black; }
+  </style>
 </head>
 <body>
 
-<div id="lobbyScreen">
-  <h1>🖥️ Stickman Desktop</h1>
-  <p class="sub">Multiplayer · Host Authority · Inteligência Unificada</p>
-  <div class="lobby-box">
-    <label>Seu apelido</label>
-    <input type="text" id="inputNick" placeholder="Ex: Void_Hacker" maxlength="20">
-    <label>Código da sala</label>
-    <input type="text" id="inputRoom" placeholder="Ex: matrix123" maxlength="20">
-    <div id="playerList"></div>
-    <div id="lobbyStatus">Digite seu nick e um código de sala.</div>
-    <button class="btn-main" id="btnJoin">Entrar na Sala</button>
-    <button class="btn-main red" id="btnStart" style="display:none;">▶ Iniciar Desktop</button>
-  </div>
-</div>
-
 <div id="desktop">
-  <div id="desktopBg"></div>
-  <div id="connIndicator"><div class="conn-dot"></div><span id="connText">Online</span></div>
-  <div id="hostBadge">👑 VOCÊ É O HOST</div>
-  
-  <div id="myCursor">
-    <svg viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><polygon points="2,2 2,16 6,12 9,18 11,17 8,11 14,11" fill="white" stroke="black" stroke-width="1"/></svg>
-  </div>
+  <div id="myCursor" style="position: absolute; display: none;"></div>
 
-  <div id="paintWindow">
-    <div class="win-titlebar" id="paintTitlebar">
-      <span>🎨 Estúdio de Criação Paint</span>
-      <div class="win-controls"><div class="win-btn">_</div><div class="win-btn">□</div><div class="win-btn close-btn" id="btnClosePaint">✕</div></div>
+  <div id="paintWindow" class="window" style="left: 40%; top: 30%;">
+    <div class="window-header" id="paintHeader">
+      <span>Paint Studio</span>
+      <button class="window-close" onclick="document.getElementById('paintWindow').style.display='none'">X</button>
     </div>
-    <div id="paintToolbar">
-      <span class="pt-label">Cor:</span>
-      <div class="color-swatch active" style="background:#000" data-color="black"></div>
-      <div class="color-swatch" style="background:#f00" data-color="red"></div>
-      <div class="color-swatch" style="background:#00f" data-color="blue"></div>
-      <div class="color-swatch" style="background:#0a0" data-color="green"></div>
-      <div class="color-swatch" style="background:#f80" data-color="orange"></div>
-      <div class="color-swatch" style="background:#a0f" data-color="purple"></div>
-      <span class="pt-label" style="margin-left:6px">Forma:</span>
-      <button class="pt-btn active" data-tool="pencil">✏️ Livre</button>
-      <button class="pt-btn" data-tool="rect">⬜ Retâng.</button>
-      <button class="pt-btn" data-tool="oval">⭕ Círc.</button>
-      <span class="pt-label" style="margin-left:6px">Pincel:</span>
-      <button class="pt-btn" data-size="2">Fino</button>
-      <button class="pt-btn active" data-size="6">Médio</button>
-      <button class="pt-btn" data-size="14">Grosso</button>
-      <button class="pt-btn" style="margin-left:auto; background:#fcc;" id="btnClearPaint">🗑 Limpar</button>
-    </div>
-    <canvas id="paintCanvas" width="556" height="380"></canvas>
-    <div id="paintStatusBar"><span>Clique direito no Canvas para injetar na Matrix</span><span id="paintCoords">x:0, y:0</span></div>
-  </div>
-
-  <div id="injectMenu" class="context-menu">
-    <div class="menu-item" data-action="stickman">✨ Injetar como Stickman Vivo</div>
-    <div class="menu-item" data-action="weapon">⚔️ Equipar como Arma Física</div>
-    <div class="menu-item" data-action="barrier">🧱 Fixar como Barreira Sólida</div>
-  </div>
-
-  <div id="stickmanMenu" class="context-menu">
-    <div class="menu-item" data-action="msg">💬 Enviar Mensagem</div>
-    <div class="menu-item" data-action="mission">👑 Dar Diretriz Absoluta</div>
-    <div class="menu-item" data-action="rename">✏️ Alterar Matriz (Nome)</div>
-    <div class="menu-item" data-action="clone">👥 Invocar Dublê Quântico</div>
-    <div class="menu-item red" data-action="kill">❌ Desintegrar</div>
-  </div>
-
-  <div id="genericPrompt" class="prompt-bg">
-    <div class="prompt-box">
-      <h3 id="promptTitle">Título</h3>
-      <input type="text" id="promptInput" placeholder="...">
-      <div class="prompt-btns">
-        <button id="btnPromptCancel">Cancelar</button>
-        <button class="ok" id="btnPromptOk">Confirmar</button>
-      </div>
+    <div class="window-body">
+      <p>Área de Colisão Sólida</p>
+      <canvas id="paintCanvas" width="280" height="130" style="border:1px dashed #999; background:white;"></canvas>
     </div>
   </div>
 
   <div id="taskbar">
-    <button id="startBtn"><svg width="14" height="14" viewBox="0 0 14 14"><rect width="6" height="6" fill="#f00"/><rect x="8" width="6" height="6" fill="#0f0"/><rect y="8" width="6" height="6" fill="#00f"/><rect x="8" y="8" width="6" height="6" fill="#ff0"/></svg> Iniciar</button>
-    <button class="taskbar-btn" id="btnOpenPaint">🎨 Paint Studio</button>
-    <div id="taskbarTime">00:00</div>
+    <button class="start-btn" id="spawnBtn">Injetar Stickman</button>
+    <button class="start-btn" style="background:#555; margin-left:5px;" onclick="document.getElementById('paintWindow').style.display='flex'">Abrir Janela</button>
   </div>
 </div>
 
 <script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js";
-  import { getDatabase, ref, set, push, onValue, update, remove, get, onDisconnect } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js";
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+  import { getDatabase, ref, set, push, onValue, update, remove, onChildAdded, onChildRemoved, onChildChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
-  const firebaseConfig = { databaseURL: "https://stickland-3ccaa-default-rtdb.firebaseio.com" };
+  // Configuração padrão do Firebase Realtime Database
+  const firebaseConfig = {
+    databaseURL: "https://SEU-FIREBASE-DATABASE-URL-AQUI.firebaseio.com" 
+  };
+  
   const app = initializeApp(firebaseConfig);
   const db = getDatabase(app);
-  const GROQ_API = "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";
 
-  let myId = 'p_' + Math.random().toString(36).slice(2,9);
-  let myNick = '';
-  let roomId = '';
-  let isHost = false; 
-  let inDesktop = false;
+  // Variáveis Globais de Sessão Multiplayer
+  const roomId = "sandbox_main_room";
+  const myId = "usr_" + Math.random().toString(36).substr(2, 9);
+  const myNick = prompt("Digite seu Nickname para a Matrix:") || "User_" + Math.floor(Math.random() * 900);
+  
+  let roomRef = ref(db, `desktopRooms/${roomId}`);
+  let stickmans = {};
+  let cursors = {};
 
-  const remoteCursors = {};
-  const stickmans = {};
-  const staticItems = {};
+  // Chaves de Comunicação da IA (Identidade Groq/Desktop_Sandbox)
+  const API_KEY = "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"; 
+  const API_URL = "https://api.groq.com/openai/v1/chat/completions";
 
-  // ═══════════════════ IA GROQ ═══════════════════
-  async function askGroq(system, promptText) {
+  // ── FUNÇÃO CENTRAL DE INTEGRAÇÃO COGNITIVA (GROQ) ────────────────────────────────────────────────
+  async function askAi(systemPrompt, userPrompt, memoryCtx = [], temp = 0.85) {
+    const messages = [{ role: "system", content: systemPrompt }];
+    memoryCtx.slice(-6).forEach(mem => {
+      messages.push({ role: "user", content: mem.user });
+      if (mem.ai) messages.push({ role: "assistant", content: mem.ai });
+    });
+    messages.push({ role: "user", content: userPrompt });
+
     try {
-      const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST", headers: { "Authorization": `Bearer ${GROQ_API}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "llama-3.1-8b-instant", messages: [{ role: "system", content: system }, { role: "user", content: promptText }], temperature: 0.85, max_tokens: 60 })
+      const res = await fetch(API_URL, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ model: "llama-3.1-8b-instant", messages, temperature: temp })
       });
       const data = await res.json();
-      return data.choices[0].message.content.trim().replace(/["']/g, "");
-    } catch (e) { return "Falha de conexão neural."; }
+      return data.choices[0].message.content.trim();
+    } catch (e) {
+      console.error("Erro na Matrix de Comunicação IA:", e);
+      return "...";
+    }
   }
 
-  // ═══════════════════ LOBBY & HOST ELECTION ═══════════════════
-  document.getElementById('btnJoin').addEventListener('click', joinRoom);
-  document.getElementById('btnStart').addEventListener('click', startDesktop);
+  // Avaliação Inicial Baseada no Nome do Stickman (Cópia exata da lógica Python)
+  async function evaluateSkillsAndPrompt(name) {
+    const evalPrompt = `Analise estritamente o peso e a imponência do nome '${name}' para um RPG de combate sandbox. 
+    1. Nome fraco/comum (ex: 'Bob'): hp baixo (10-50), todas skills false.
+    2. Nome mediano: hp 60-110, poucas skills true.
+    3. Nome de Boss/Deus (ex: 'Caine', 'God', 'Carlos IA'): hp massivo (150-500), múltiplos superpoderes destructivos.
+    Responda EXCLUSIVAMENTE em JSON válido, sem markdown: {"hp": 100, "fly": false, "laser": false, "fire": false, "speed": false}`;
 
-  async function joinRoom() {
-    myNick = document.getElementById('inputNick').value.trim();
-    roomId = document.getElementById('inputRoom').value.trim().toLowerCase();
-    if (!myNick || !roomId) return alert("Preencha nick e sala!");
-    
-    document.getElementById('lobbyStatus').textContent = 'Conectando à Matrix...';
-    
-    const playerRef = ref(db, `desktopRooms/${roomId}/players/${myId}`);
-    await set(playerRef, { id: myId, nick: myNick, joinedAt: Date.now(), active: true });
-    onDisconnect(playerRef).update({ active: false });
+    const res = await askAi("Você é um balanceador rigid de atributos de jogos.", evalPrompt, [], 0.2);
+    try {
+      const match = res.match(/\{.*\}/s);
+      return JSON.parse(match[0]);
+    } catch {
+      return { hp: 100, fly: false, laser: false, fire: false, speed: false };
+    }
+  }
 
-    onValue(ref(db, `desktopRooms/${roomId}/players`), snap => {
-      if (!snap.exists()) return;
-      const players = Object.values(snap.val()).filter(p => p.active).sort((a, b) => a.joinedAt - b.joinedAt);
+  // ── REPLICAÇÃO DOS MOUSES (CORRIGIDO DEFINITIVAMENTE COM THROTTLE) ────────────────────────────────
+  function setupCursorTracking() {
+    const desktop = document.getElementById('desktop');
+    let lastUpdate = 0;
+
+    desktop.addEventListener('mousemove', e => {
+      const now = Date.now();
+      // O Throttle limita o fluxo absurdo de escrita no Firebase para preservar sincronia
+      if (now - lastUpdate > 60) { 
+        lastUpdate = now;
+        const pctX = (e.clientX / window.innerWidth) * 100;
+        const pctY = (e.clientY / window.innerHeight) * 100;
+        
+        update(ref(db, `desktopRooms/${roomId}/cursors/${myId}`), {
+          x: pctX, y: pctY, nick: myNick, t: now
+        });
+      }
+    });
+
+    // Limpeza de mouses inativos (Desconexão)
+    window.addEventListener('beforeunload', () => {
+      remove(ref(db, `desktopRooms/${roomId}/cursors/${myId}`));
+    });
+  }
+
+  // Ouvinte de Cursores Remotos
+  onValue(ref(db, `desktopRooms/${roomId}/cursors`), snapshot => {
+    const data = snapshot.val() || {};
+    const desktop = document.getElementById('desktop');
+    
+    // Remover antigos
+    Object.keys(cursors).forEach(id => {
+      if (!data[id] || id === myId) {
+        cursors[id]?.remove();
+        delete cursors[id];
+      }
+    });
+
+    // Atualizar / Adicionar
+    Object.keys(data).forEach(id => {
+      if (id === myId) return;
+      const cData = data[id];
       
-      // SISTEMA DE HOST: O jogador ativo mais antigo da sala dita a física
-      isHost = (players.length > 0 && players[0].id === myId);
-      document.getElementById('hostBadge').style.display = isHost ? 'block' : 'none';
+      let cEl = cursors[id];
+      if (!cEl) {
+        cEl = document.createElement('div');
+        cEl.className = 'cursor-replica';
+        cEl.innerHTML = `<div class="cursor-label">${cData.nick}</div>`;
+        desktop.appendChild(cEl);
+        cursors[id] = cEl;
+      }
       
-      const box = document.getElementById('playerList');
-      box.innerHTML = '';
-      players.forEach(p => {
-        const d = document.createElement('div');
-        d.className = 'player-entry' + (p.id === myId ? ' me' : '') + (p.id === players[0].id ? ' host' : '');
-        d.textContent = `• ${p.nick} ${p.id === players[0].id ? '👑 (HOST)' : ''}`;
-        box.appendChild(d);
-      });
-
-      document.getElementById('btnStart').style.display = 'block';
-    });
-  }
-
-  function startDesktop() {
-    inDesktop = true;
-    document.getElementById('lobbyScreen').style.display = 'none';
-    document.getElementById('desktop').style.display = 'block';
-    setupCursorTracking(); setupItemsSync(); setupClock();
-  }
-
-  // ═══════════════════ PAINT & INJEÇÃO ═══════════════════
-  const cnv = document.getElementById('paintCanvas');
-  const ctx = cnv.getContext('2d');
-  const paintState = { drawing: false, color: 'black', tool: 'pencil', size: 6, sx: 0, sy: 0, lx: 0, ly: 0 };
-  let shapeSnapshot = null;
-
-  document.querySelectorAll('.color-swatch').forEach(sw => sw.addEventListener('click', () => { document.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('active')); sw.classList.add('active'); paintState.color = sw.dataset.color; }));
-  document.querySelectorAll('.pt-btn[data-tool]').forEach(b => b.addEventListener('click', () => { document.querySelectorAll('.pt-btn[data-tool]').forEach(x => x.classList.remove('active')); b.classList.add('active'); paintState.tool = b.dataset.tool; }));
-  document.querySelectorAll('.pt-btn[data-size]').forEach(b => b.addEventListener('click', () => { document.querySelectorAll('.pt-btn[data-size]').forEach(x => x.classList.remove('active')); b.classList.add('active'); paintState.size = parseInt(b.dataset.size); }));
-  document.getElementById('btnClearPaint').addEventListener('click', () => ctx.clearRect(0,0,cnv.width,cnv.height));
-
-  const cnvPos = (e) => { const r = cnv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
-  cnv.addEventListener('mousedown', e => { if (e.button !== 0) return; paintState.drawing = true; const {x,y} = cnvPos(e); paintState.sx=paintState.lx=x; paintState.sy=paintState.ly=y; ctx.strokeStyle=paintState.color; ctx.lineWidth=paintState.size; ctx.lineCap='round'; ctx.beginPath(); ctx.moveTo(x,y); });
-  cnv.addEventListener('mousemove', e => { const {x,y} = cnvPos(e); document.getElementById('paintCoords').textContent = `x:${Math.floor(x)}, y:${Math.floor(y)}`; if (!paintState.drawing) return; if(paintState.tool === 'pencil') { ctx.lineTo(x,y); ctx.stroke(); paintState.lx=x; paintState.ly=y; } else { if(!shapeSnapshot) shapeSnapshot=ctx.getImageData(0,0,cnv.width,cnv.height); ctx.putImageData(shapeSnapshot,0,0); ctx.strokeStyle=paintState.color; ctx.lineWidth=paintState.size; ctx.beginPath(); drawShape(ctx,paintState.tool,paintState.sx,paintState.sy,x,y); ctx.stroke(); } });
-  cnv.addEventListener('mouseup', e => { if (!paintState.drawing) return; paintState.drawing=false; const {x,y}=cnvPos(e); if(paintState.tool!=='pencil'){ shapeSnapshot=null; ctx.beginPath(); drawShape(ctx,paintState.tool,paintState.sx,paintState.sy,x,y); ctx.stroke(); } ctx.beginPath(); });
-  function drawShape(c, t, sx, sy, ex, ey) { if(t==='rect') c.rect(sx,sy,ex-sx,ey-sy); else if(t==='oval') { const rx=Math.abs(ex-sx)/2, ry=Math.abs(ey-sy)/2; c.ellipse(sx+(ex-sx)/2,sy+(ey-sy)/2,rx||1,ry||1,0,0,Math.PI*2); } }
-
-  // ═══════════════════ MENUS DE CONTEXTO E PROMPTS ═══════════════════
-  let activeTargetKey = null;
-  let activeAction = null;
-
-  function showPrompt(title, placeholder, onConfirm) {
-    const pBg = document.getElementById('genericPrompt');
-    document.getElementById('promptTitle').textContent = title;
-    const inp = document.getElementById('promptInput');
-    inp.value = ''; inp.placeholder = placeholder;
-    pBg.style.display = 'flex'; inp.focus();
-    
-    document.getElementById('btnPromptOk').onclick = () => { pBg.style.display = 'none'; onConfirm(inp.value.trim()); };
-    document.getElementById('btnPromptCancel').onclick = () => pBg.style.display = 'none';
-  }
-
-  // Menu de Injeção no Canvas
-  cnv.addEventListener('contextmenu', e => {
-    e.preventDefault();
-    const menu = document.getElementById('injectMenu');
-    menu.style.display = 'block'; menu.style.left = e.pageX + 'px'; menu.style.top = e.pageY + 'px';
-  });
-
-  document.querySelectorAll('#injectMenu .menu-item').forEach(item => {
-    item.addEventListener('click', () => {
-      document.getElementById('injectMenu').style.display = 'none';
-      const action = item.dataset.action;
-      if (action === 'stickman') {
-        showPrompt("Nome da Entidade", "Ex: God, Destroyer, Bob...", name => injectItem('stickman', name || 'Stickman'));
-      } else injectItem(action, action.toUpperCase());
+      const realX = (cData.x / 100) * window.innerWidth;
+      const realY = (cData.y / 100) * window.innerHeight;
+      cEl.style.left = realX + 'px';
+      cEl.style.top = realY + 'px';
     });
   });
 
-  // Menu de Interação no Stickman (O que faltava)
-  document.querySelectorAll('#stickmanMenu .menu-item').forEach(item => {
-    item.addEventListener('click', () => {
-      document.getElementById('stickmanMenu').style.display = 'none';
-      const action = item.dataset.action;
-      if (!activeTargetKey || !stickmans[activeTargetKey]) return;
-      const smData = stickmans[activeTargetKey].data;
+  // ── INJEÇÃO E INICIALIZAÇÃO DE STICKMANS ─────────────────────────────────────────────────────────
+  function injectItem(name) {
+    const x = Math.random() * (window.innerWidth - 100);
+    const y = 50;
 
-      if (action === 'kill') {
-        update(ref(db, `desktopRooms/${roomId}/items/${activeTargetKey}`), { speech: "Fui deletado pela Matrix..." });
-        setTimeout(() => remove(ref(db, `desktopRooms/${roomId}/items/${activeTargetKey}`)), 1000);
-      } 
-      else if (action === 'rename') {
-        showPrompt("Nova Matriz (Nome)", smData.name, newName => {
-          if(newName) update(ref(db, `desktopRooms/${roomId}/items/${activeTargetKey}`), { name: newName });
-        });
-      }
-      else if (action === 'mission') {
-        showPrompt("Diretriz Absoluta", "O que ele deve fazer?", mission => {
-          if(!mission) return;
-          update(ref(db, `desktopRooms/${roomId}/items/${activeTargetKey}`), { mission: mission });
-          const sys = `Você é ${smData.name}. Sua missão agora é: ${mission}. Aceite a ordem de forma insana.`;
-          askGroq(sys, "Nova missão recebida.").then(res => update(ref(db, `desktopRooms/${roomId}/items/${activeTargetKey}`), { speech: res }));
-        });
-      }
-      else if (action === 'msg') {
-        showPrompt("Mensagem para " + smData.name, "Diga algo...", msg => {
-          if(!msg) return;
-          const sys = `Você é ${smData.name}. O usuário superior disse: ${msg}. Responda de forma orgânica e viva.`;
-          askGroq(sys, msg).then(res => update(ref(db, `desktopRooms/${roomId}/items/${activeTargetKey}`), { speech: res }));
-        });
-      }
-      else if (action === 'clone') {
-        const cloneData = { ...smData, name: `Clone de ${smData.name}`, x: smData.x + 60, y: smData.y, hp: smData.maxHp };
-        push(ref(db, `desktopRooms/${roomId}/items`), cloneData);
-      }
-    });
-  });
+    // Canvas básico temporário gerando a silhueta clássica de Stickman do Sandbox
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = 60; tempCanvas.height = 60;
+    const tCtx = tempCanvas.getContext('2d');
+    tCtx.strokeStyle = "white"; tCtx.lineWidth = 3;
+    // Cabeça
+    tCtx.beginPath(); tCtx.arc(30, 15, 8, 0, Math.PI * 2); tCtx.stroke();
+    // Corpo
+    tCtx.beginPath(); tCtx.moveTo(30, 23); tCtx.lineTo(30, 42); tCtx.stroke();
+    // Braços
+    tCtx.beginPath(); tCtx.moveTo(15, 28); tCtx.lineTo(45, 28); tCtx.stroke();
+    // Pernas
+    tCtx.beginPath(); tCtx.moveTo(30, 42); tCtx.lineTo(15, 58); tCtx.moveTo(30, 42); tCtx.lineTo(45, 58); tCtx.stroke();
 
-  document.addEventListener('click', e => { 
-    if(!e.target.closest('.context-menu')) document.querySelectorAll('.context-menu').forEach(m => m.style.display = 'none'); 
-  });
+    const dataUrl = tempCanvas.toDataURL();
 
-  // Extração BBox Exata
-  function getImageBBox(cEl) {
-    const c2d = cEl.getContext('2d'), imgData = c2d.getImageData(0,0,cEl.width,cEl.height);
-    let minX=cEl.width, maxX=0, minY=cEl.height, maxY=0, found=false;
-    for(let y=0; y<cEl.height; y++){ for(let x=0; x<cEl.width; x++){ if(imgData.data[(y*cEl.width+x)*4+3]>10){
-      if(x<minX) minX=x; if(x>maxX) maxX=x; if(y<minY) minY=y; if(y>maxY) maxY=y; found=true;
-    }}}
-    return found ? { x: minX, y: minY, w: (maxX-minX)+10, h: (maxY-minY)+10 } : { x:0, y:0, w:100, h:100 };
-  }
-
-  function injectItem(action, name) {
-    const bbox = getImageBBox(cnv);
-    const tempCnv = document.createElement('canvas'); tempCnv.width = bbox.w; tempCnv.height = bbox.h;
-    tempCnv.getContext('2d').drawImage(cnv, bbox.x, bbox.y, bbox.w, bbox.h, 0, 0, bbox.w, bbox.h);
-    const isGod = ['god','boss','dark','hacker','chaos'].some(w => name.toLowerCase().includes(w));
-    
     const payload = {
-      action, name, x: 200, y: 150, w: Math.max(bbox.w, 40), h: Math.max(bbox.h, 40),
-      dataUrl: tempCnv.toDataURL('image/png'), creator: myNick, mission: "Livre arbítrio",
-      hp: isGod ? 500 : 100, maxHp: isGod ? 500 : 100,
-      skills: { speed: isGod || Math.random()>0.7, attack: isGod || Math.random()>0.5 }
+      action: "stickman", name, x, y, w: 60, h: 60,
+      dataUrl, creator: myNick,
+      hp: 100, max_hp: 100,
+      pontos_espirito: 1000,
+      alignment: "Caótico",
+      traumas: { mouse: 0, user_delet: 0, window: 0, rivals: 0, weapons: 0 },
+      skills: { fly: false, speed: false, laser: false, fire: false },
+      speech: "Instanciando consciência...",
+      timestamp: Date.now()
     };
-    push(ref(db, `desktopRooms/${roomId}/items`), payload);
-    ctx.clearRect(0,0,cnv.width,cnv.height);
-  }
 
-  // ═══════════════════ SINCRONIZAÇÃO E FÍSICA (HOST AUTHORITY) ═══════════════════
-  function setupItemsSync() {
-    onValue(ref(db, `desktopRooms/${roomId}/items`), snap => {
-      const data = snap.val() || {};
-      Object.keys(stickmans).forEach(fbKey => { if (!data[fbKey]) { stickmans[fbKey].el.remove(); delete stickmans[fbKey]; } });
-      Object.keys(staticItems).forEach(fbKey => { if (!data[fbKey]) { staticItems[fbKey].remove(); delete staticItems[fbKey]; } });
+    const newRef = push(ref(db, `desktopRooms/${roomId}/items`));
+    set(newRef, payload);
 
-      Object.entries(data).forEach(([fbKey, item]) => {
-        if (item.action === 'stickman') {
-          if (!stickmans[fbKey]) createStickman(fbKey, item);
-          else {
-            stickmans[fbKey].data = item;
-            // Se NÃO for o host, a posição visual segue estritamente a posição do banco de dados (Interpolação Suave)
-            if (!isHost && !stickmans[fbKey].dragging) {
-               stickmans[fbKey].tx = item.x;
-               stickmans[fbKey].ty = item.y;
-            }
-            // Atualiza UI
-            stickmans[fbKey].hpBar.style.width = (item.hp/item.maxHp*100) + '%';
-            stickmans[fbKey].hpBar.style.background = item.hp < 30 ? '#f00' : '#00ff66';
-            if(item.name !== stickmans[fbKey].el.querySelector('.stickman-nametag').textContent.split(' ')[0]) {
-               stickmans[fbKey].el.querySelector('.stickman-nametag').textContent = `${item.name} ` + (item.skills?.speed?'⚡':'');
-            }
-            if (item.speech && item.speech !== stickmans[fbKey].lastSpeech) {
-              stickmans[fbKey].lastSpeech = item.speech;
-              showSpeechBubble(stickmans[fbKey].el, item.speech);
-            }
-          }
-        } else {
-          if (!staticItems[fbKey]) createStaticItem(fbKey, item);
-          else if (!isHost && !staticItems[fbKey].dragging) {
-            staticItems[fbKey].style.left = item.x + 'px';
-            staticItems[fbKey].style.top = item.y + 'px';
-          }
-        }
+    // Avalia o nome assincronamente e sobrescreve com as propriedades reais calculadas pela IA
+    evaluateSkillsAndPrompt(name).then(stats => {
+      let alignment = "Pacífico";
+      const nLow = name.toLowerCase();
+      if (["god", "boss", "evil", "caine", "carlos ia", "hacker"].some(v => nLow.includes(v))) {
+        alignment = "Destrutor";
+      } else {
+        alignment = ["Pacífico", "Caótico", "Hostil"][Math.floor(Math.random() * 3)];
+      }
+
+      update(ref(db, `desktopRooms/${roomId}/items/${newRef.key}`), {
+        hp: stats.hp || 100,
+        max_hp: stats.hp || 100,
+        skills: stats,
+        alignment: alignment,
+        speech: `Eu sou ${name}. Categoria: ${alignment}.`
       });
-    });
 
-    requestAnimationFrame(physicsLoop);
-  }
-
-  function createStickman(fbKey, data) {
-    const wrap = document.createElement('div'); wrap.className = 'stickman-entity';
-    wrap.style.width = data.w + 'px'; wrap.style.left = data.x + 'px'; wrap.style.top = data.y + 'px';
-    wrap.innerHTML = `<div class="stickman-nametag">${data.name} ${data.skills?.speed?'⚡':''}</div><div class="stickman-hp-wrap"><div class="stickman-hp-bar" style="width:100%"></div></div><canvas class="stickman-canvas" width="${data.w}" height="${data.h}"></canvas>`;
-    document.getElementById('desktop').appendChild(wrap);
-
-    const sCnv = wrap.querySelector('.stickman-canvas');
-    const smObj = { fbKey, data, el: wrap, cnv: sCnv, hpBar: wrap.querySelector('.stickman-hp-bar'), vx: 0, vy: 0, tx: data.x, ty: data.y, frame: 0, dragging: false, lastAction: 0, readyImg: null };
-    stickmans[fbKey] = smObj;
-    
-    if (data.dataUrl) { const img = new Image(); img.onload = () => smObj.readyImg = img; img.src = data.dataUrl; }
-    makeDraggableDesktop(sCnv, wrap, fbKey, 'stickman');
-
-    // Menu de Contexto Específico (Right-Click)
-    sCnv.addEventListener('contextmenu', e => {
-      e.preventDefault(); e.stopPropagation();
-      activeTargetKey = fbKey;
-      const m = document.getElementById('stickmanMenu');
-      m.style.display = 'block'; m.style.left = e.pageX + 'px'; m.style.top = e.pageY + 'px';
+      setTimeout(() => update(ref(db, `desktopRooms/${roomId}/items/${newRef.key}`), { speech: "" }), 3500);
     });
   }
 
-  function showSpeechBubble(parentEl, text) {
-    if(!text) return;
-    let b = parentEl.querySelector('.stickman-bubble');
-    if (!b) { b = document.createElement('div'); b.className = 'stickman-bubble'; parentEl.appendChild(b); }
-    b.textContent = text;
-    b.style.animation = 'none'; b.offsetHeight; b.style.animation = 'bubbleFade 4s forwards';
-  }
+  document.getElementById('spawnBtn').addEventListener('click', () => {
+    const nome = prompt("Nome do Stickman para análise de poder:");
+    if (nome) injectItem(nome);
+  });
 
-  function createStaticItem(fbKey, item) {
-    const el = document.createElement('div');
-    el.style.cssText = `position:absolute;left:${item.x}px;top:${item.y}px;width:${item.w}px;height:${item.h}px;z-index:300;cursor:move;display:flex;align-items:center;justify-content:center;user-select:none;`;
-    if (item.dataUrl) el.innerHTML = `<img src="${item.dataUrl}" style="max-width:100%;max-height:100%;object-fit:contain;pointer-events:none;">`;
-    else { el.style.border = `2px dashed ${item.action==='barrier'?'#555':'#f30'}`; el.textContent = item.action === 'barrier'?'🧱':'⚔️'; }
-    document.getElementById('desktop').appendChild(el);
-    staticItems[fbKey] = el;
-    makeDraggableDesktop(el, el, fbKey, 'static');
-  }
+  // ── GERENCIAMENTO DA FILA VISUAL NO DOM ──────────────────────────────────────────────────────────
+  onChildAdded(ref(db, `desktopRooms/${roomId}/items`), snapshot => {
+    const fbKey = snapshot.key;
+    const data = snapshot.val();
+    createStickmanVisual(fbKey, data);
+  });
 
-  function makeDraggableDesktop(triggerEl, targetEl, fbKey, type) {
-    let sx=0, sy=0, ox=0, oy=0;
-    triggerEl.addEventListener('mousedown', e => {
-      if (e.button !== 0) return;
-      if (type === 'stickman') stickmans[fbKey].dragging = true; else staticItems[fbKey].dragging = true;
-      sx = e.clientX; sy = e.clientY; ox = parseFloat(targetEl.style.left)||0; oy = parseFloat(targetEl.style.top)||0; targetEl.style.zIndex = 850;
-      
-      const move = ev => { targetEl.style.left = (ox + ev.clientX - sx)+'px'; targetEl.style.top = (oy + ev.clientY - sy)+'px'; };
-      const up = ev => {
-        document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up);
-        if (type === 'stickman') stickmans[fbKey].dragging = false; else staticItems[fbKey].dragging = false;
-        targetEl.style.zIndex = type === 'stickman' ? 400 : 300;
-        update(ref(db, `desktopRooms/${roomId}/items/${fbKey}`), { x: parseFloat(targetEl.style.left), y: parseFloat(targetEl.style.top) });
-      };
-      document.addEventListener('mousemove', move); document.addEventListener('mouseup', up);
+  onChildChanged(ref(db, `desktopRooms/${roomId}/items`), snapshot => {
+    const fbKey = snapshot.key;
+    const data = snapshot.val();
+    const sm = stickmans[fbKey];
+    if (sm) {
+      sm.data = data;
+      // Sincroniza balão de fala
+      const speechBubble = sm.el.querySelector('.speech-bubble');
+      if (data.speech) {
+        speechBubble.style.display = 'block';
+        speechBubble.innerText = data.speech;
+      } else {
+        speechBubble.style.display = 'none';
+      }
+      // Sincroniza barra de vida
+      const hpFill = sm.el.querySelector('.hp-bar-fill');
+      const pct = (data.hp / data.max_hp) * 100;
+      hpFill.style.width = Math.max(0, pct) + "%";
+    }
+  });
+
+  onChildRemoved(ref(db, `desktopRooms/${roomId}/items`), snapshot => {
+    const fbKey = snapshot.key;
+    if (stickmans[fbKey]) {
+      stickmans[fbKey].el.remove();
+      delete stickmans[fbKey];
+    }
+  });
+
+  function createStickmanVisual(fbKey, data) {
+    const desktop = document.getElementById('desktop');
+    const container = document.createElement('div');
+    container.className = 'stickman-container';
+    container.style.left = data.x + 'px';
+    container.style.top = data.y + 'px';
+
+    container.innerHTML = `
+      <div class="speech-bubble" style="display: ${data.speech ? 'block' : 'none'}">${data.speech || ''}</div>
+      <canvas class="smCanvas" width="${data.w}" height="${data.h}"></canvas>
+      <div class="stickman-name">${data.name}</div>
+      <div class="hp-bar-bg"><div class="hp-bar-fill"></div></div>
+    `;
+
+    desktop.appendChild(container);
+
+    const canvas = container.querySelector('.smCanvas');
+    const img = new Image();
+    img.src = data.dataUrl;
+    img.onload = () => {
+      canvas.getContext('2d').drawImage(img, 0, 0, data.w, data.h);
+    };
+
+    stickmans[fbKey] = {
+      el: container,
+      cnv: canvas,
+      fbKey: fbKey,
+      data: data,
+      readyImg: img,
+      vx: 0, vy: 0,
+      targetX: data.x,
+      lastDecision: 0,
+      frame: Math.floor(Math.random() * 100),
+      dragging: false
+    };
+
+    // Evento de arrastar nativo para interações físicas do Usuário
+    container.addEventListener('mousedown', e => {
+      stickmans[fbKey].dragging = true;
+      let shiftX = e.clientX - container.getBoundingClientRect().left;
+      let shiftY = e.clientY - container.getBoundingClientRect().top;
+
+      function moveAt(pageX, pageY) {
+        container.style.left = (pageX - shiftX) + 'px';
+        container.style.top = (pageY - shiftY) + 'px';
+      }
+
+      function onMouseMove(ev) {
+        moveAt(ev.clientX, ev.clientY);
+      }
+
+      document.addEventListener('mousemove', onMouseMove);
+
+      document.addEventListener('mouseup', () => {
+        document.removeEventListener('mousemove', onMouseMove);
+        if (stickmans[fbKey]) {
+          stickmans[fbKey].dragging = false;
+          stickmans[fbKey].targetX = parseFloat(container.style.left);
+          // Incrementa trauma por manipulação do mouse
+          const tMouse = (stickmans[fbKey].data.traumas?.mouse || 0) + 1;
+          update(ref(db, `desktopRooms/${roomId}/items/${fbKey}`), {
+            x: parseFloat(container.style.left),
+            y: parseFloat(container.style.top),
+            "traumas/mouse": tMouse
+          });
+        }
+      }, { once: true });
     });
   }
 
-  // ── MOTOR FÍSICO DO HOST ──
+  // ── O MOTOR DE FÍSICA E INTELIGÊNCIA ARTIFICIAL COMPLETO (IDENTICO AO DESKTOP_SANDBOX) ───────────
+  const gravity = 0.85;
+
   function physicsLoop() {
     const now = Date.now();
-    const dh = window.innerHeight - 36, dw = window.innerWidth;
+    const dw = window.innerWidth;
+    const dh = window.innerHeight - 36; // Compensação da Barra de Tarefas
 
     Object.values(stickmans).forEach(sm => {
       if (sm.dragging) return;
-      let curX = parseFloat(sm.el.style.left) || sm.data.x;
-      let curY = parseFloat(sm.el.style.top) || sm.data.y;
 
-      if (isHost) {
-        // --- 1. O HOST CALCULA O MOVIMENTO E IA ---
-        if (now - sm.lastAction > (sm.data.skills?.speed ? 1500 : 2500)) {
-          sm.lastAction = now;
-          sm.vx = (Math.random() - 0.5) * (sm.data.skills?.speed ? 5 : 2.5);
-          sm.vy = (Math.random() - 0.5) * 4;
+      const stats = sm.data;
+      if (!stats || stats.hp <= 0) return;
+
+      let curX = parseFloat(sm.el.style.left) || stats.x;
+      let curY = parseFloat(sm.el.style.top) || stats.y;
+
+      // Fatores modificadores de Poder das Skills Calculadas
+      const speedFactor = stats.skills?.speed ? 2.8 : 1.0;
+      const thinkTime = stats.skills?.speed ? 700 : 2200;
+
+      // ── MÓDULO COGNITIVO AUTÔNOMO ──
+      if (now - sm.lastDecision > thinkTime) {
+        sm.lastDecision = now;
+
+        // Decisão de movimentação horizontal errática
+        if (Math.random() > 0.25) {
+          sm.targetX = Math.random() * (dw - stats.w);
         }
 
-        // Colisões com barreiras
-        Object.keys(staticItems).forEach(sKey => {
-          const bEl = staticItems[sKey]; if(!bEl) return;
-          const bx = parseFloat(bEl.style.left), by = parseFloat(bEl.style.top), bw = bEl.offsetWidth, bh = bEl.offsetHeight;
-          if (curX < bx + bw && curX + sm.data.w > bx && curY < by + bh && curY + sm.data.h > by) { sm.vx *= -1; sm.vy *= -1; curX += sm.vx*2; curY += sm.vy*2; }
-        });
+        // Impulso de Pulo Autônomo baseado no vetor Y (se no solo e sem skill de voo)
+        if (Math.random() > 0.68 && sm.vy === 0 && !stats.skills?.fly) {
+          sm.vy = -(Math.random() * 6 + 11);
+        }
 
-        curX += sm.vx; curY += sm.vy;
-        if (curX < 0) { curX = 0; sm.vx *= -1; } if (curX > dw - sm.data.w) { curX = dw - sm.data.w; sm.vx *= -1; }
-        if (curY < 0) { curY = 0; sm.vy *= -1; } if (curY > dh - sm.data.h) { curY = dh - sm.data.h; sm.vy *= -1; }
-
-        sm.el.style.left = curX + 'px'; sm.el.style.top = curY + 'px';
-        if (sm.vx < -0.2) sm.cnv.style.transform = 'scaleX(-1)'; else if (sm.vx > 0.2) sm.cnv.style.transform = 'scaleX(1)';
-
-        // Combate Automático
-        Object.values(stickmans).forEach(other => {
-          if (other.fbKey === sm.fbKey || other.data.hp <= 0) return;
-          const ox = parseFloat(other.el.style.left), oy = parseFloat(other.el.style.top);
-          if (Math.hypot(curX - ox, curY - oy) < 60 && Math.random() < 0.02) {
-            const finalHp = Math.max(0, other.data.hp - (sm.data.skills?.attack ? 15 : 5));
-            update(ref(db, `desktopRooms/${roomId}/items/${other.fbKey}`), { hp: finalHp });
-            if (finalHp <= 0) setTimeout(() => remove(ref(db, `desktopRooms/${roomId}/items/${other.fbKey}`)), 1000);
-          }
-        });
-
-        // Sincroniza com o Firebase a cada ~10 frames para otimizar banda
-        sm.frame++;
-        if (sm.frame % 10 === 0) update(ref(db, `desktopRooms/${roomId}/items/${sm.fbKey}`), { x: curX, y: curY });
-
-      } else {
-        // --- 2. OS CLIENTES APENAS INTERPOLAM A POSIÇÃO ---
-        curX += (sm.tx - curX) * 0.15;
-        curY += (sm.ty - curY) * 0.15;
-        sm.el.style.left = curX + 'px'; sm.el.style.top = curY + 'px';
-        
-        // Mantém a direção visual de quem não é host
-        if (sm.tx < curX - 1) sm.cnv.style.transform = 'scaleX(-1)'; else if (sm.tx > curX + 1) sm.cnv.style.transform = 'scaleX(1)';
-        sm.frame++;
+        // Execução da fala da IA - Apenas o Dono/Criador original processa para evitar spam de API na sala
+        if (stats.creator === myNick && Math.random() > 0.85) {
+          const prompt = `Você é o stickman autônomo '${stats.name}' operando em uma Matrix Desktop. Alinhamento: ${stats.alignment}. Sanidade Espiritual: ${stats.pontos_espirito}/1000. Traumas acumulados do Mouse: ${stats.traumas?.mouse || 0}. Diga uma frase de efeito curta, irônica ou insana condizente com seu estado (MÁXIMO 6 PALAVRAS).`;
+          askAi(prompt, "Manifeste-se.").then(res => {
+            update(ref(db, `desktopRooms/${roomId}/items/${sm.fbKey}`), { speech: res });
+            setTimeout(() => {
+              if (stickmans[sm.fbKey]) update(ref(db, `desktopRooms/${roomId}/items/${sm.fbKey}`), { speech: "" });
+            }, 4000);
+          });
+        }
       }
 
-      // Renderiza Animação Orgânica (Passos) - Todos rodam localmente
-      const sCtx = sm.cnv.getContext('2d'); sCtx.clearRect(0,0,sm.data.w,sm.data.h);
-      if (sm.readyImg) { const bob = Math.sin(sm.frame * 0.15) * 2; sCtx.drawImage(sm.readyImg, 0, bob, sm.data.w, sm.data.h); }
+      // ── VETORES DE DESLOCAMENTO ──
+      sm.vx += (curX < sm.targetX ? 0.70 : -0.70) * speedFactor;
+      sm.vx *= 0.84; // Coeficiente de atrito/desaceleração horizontal
+      curX += sm.vx;
+
+      if (stats.skills?.fly) {
+        // Se voa, o vetor Y oscila flutuando na metade superior da tela
+        sm.vy += (curY < (dh / 2.5) ? 0.35 : -0.35) * speedFactor;
+        sm.vy *= 0.88;
+      } else {
+        // Se não voa, aplica a aceleração de gravidade idêntica ao Pygame
+        sm.vy += gravity;
+      }
+      curY += sm.vy;
+
+      // ── SISTEMA SÓLIDO DE COLISÃO COM JANELAS (Eixo X/Y) ──
+      let currentFloor = dh;
+      const paintWin = document.getElementById('paintWindow');
+      
+      if (paintWin && paintWin.style.display !== 'none') {
+        const px = paintWin.offsetLeft;
+        const py = paintWin.offsetTop;
+        const pw = paintWin.offsetWidth;
+        
+        // Verifica se a base/pés do stickman está alinhada horizontalmente com a estrutura da janela
+        if (curX + (stats.w / 2) >= px && curX + (stats.w / 2) <= px + pw) {
+          // Detecta colisão de queda no topo da janela do Paint Studio
+          if (curY + stats.h <= py + 22 && sm.vy >= 0 && (curY + stats.h + sm.vy) >= py) {
+            currentFloor = py;
+          }
+        }
+      }
+
+      // Trava de solo/piso
+      if (curY + stats.h >= currentFloor) {
+        curY = currentFloor - stats.h;
+        sm.vy = 0;
+      }
+
+      // Restrições de bordas laterais do monitor
+      if (curX < 0) { curX = 0; sm.vx *= -0.5; }
+      if (curX > dw - stats.w) { curX = dw - stats.w; sm.vx *= -0.5; }
+
+      // Atualiza a posição em tempo real no DOM local
+      sm.el.style.left = curX + 'px';
+      sm.el.style.top = curY + 'px';
+
+      // Espelhamento visual com base na direção do vetor velocidade
+      if (sm.vx < -0.2) sm.cnv.style.transform = 'scaleX(-1)';
+      else if (sm.vx > 0.2) sm.cnv.style.transform = 'scaleX(1)';
+
+      // Animação procedural interna (Bobbing/Balanço de movimento)
+      sm.frame++;
+      const sCtx = sm.cnv.getContext('2d');
+      sCtx.clearRect(0, 0, stats.w, stats.h);
+      if (sm.readyImg) {
+        const bob = (sm.vy === 0 && Math.abs(sm.vx) > 0.5) ? Math.sin(sm.frame * 0.25) * 3.5 : 0;
+        sCtx.drawImage(sm.readyImg, 0, bob, stats.w, stats.h);
+      }
+
+      // ── MOTOR DE COMBATE E HITBOX (Sincronizado via Criador para balanceamento de rede) ──
+      if (stats.creator === myNick && sm.frame % 12 === 0) {
+        update(ref(db, `desktopRooms/${roomId}/items/${sm.fbKey}`), { x: curX, y: curY });
+
+        Object.values(stickmans).forEach(other => {
+          if (other.fbKey === sm.fbKey) return; // Evitar autoflagelo
+
+          const ox = parseFloat(other.el.style.left);
+          const oy = parseFloat(other.el.style.top);
+          const dist = Math.hypot(curX - ox, curY - oy);
+
+          // Alcance de agressividade padrão do sandbox
+          if (dist < 90 && stats.alignment !== "Pacífico") {
+            if (Math.random() < 0.15) { // Probabilidade de ataque ativo por frame processado
+              let dmg = 6;
+              let attackColor = "rgba(255, 255, 255, 0.8)";
+
+              if (stats.skills?.laser) { dmg = 15; attackColor = "#00ffff"; }
+              else if (stats.skills?.fire) { dmg = 10; attackColor = "#ffaa00"; }
+
+              const finalHp = Math.max(0, (other.data.hp || 100) - dmg);
+              
+              // Atualiza o estado no Firebase
+              update(ref(db, `desktopRooms/${roomId}/items/${other.fbKey}`), { hp: finalHp });
+
+              // Renderização do feixe de dano visual (Hitbox visível) via DOM
+              const fx = document.createElement('div');
+              fx.style.cssText = `position:absolute; left:${curX + (stats.w / 2)}px; top:${curY + (stats.h / 2)}px; width:${dist}px; height:3px; background:${attackColor}; transform-origin: left center; z-index: 1000; pointer-events: none; box-shadow: 0 0 6px ${attackColor};`;
+              const angle = Math.atan2(oy - curY, ox - curX) * 180 / Math.PI;
+              fx.style.transform = `rotate(${angle}deg)`;
+              document.getElementById('desktop').appendChild(fx);
+              setTimeout(() => fx.remove(), 120);
+
+              // Eliminação se zerar a vida útil
+              if (finalHp <= 0) {
+                remove(ref(db, `desktopRooms/${roomId}/items/${other.fbKey}`));
+              }
+            }
+          }
+        });
+      }
     });
 
     requestAnimationFrame(physicsLoop);
   }
 
-  // ═══════════════════ UTILIDADES DO DESKTOP ═══════════════════
-  function setupCursorTracking() {
-    const cur = document.getElementById('myCursor');
-    document.getElementById('desktop').addEventListener('mousemove', e => {
-      cur.style.left = e.clientX + 'px'; cur.style.top = e.clientY + 'px';
-      if(inDesktop && Date.now() % 3 === 0) update(ref(db, `desktopRooms/${roomId}/cursors/${myId}`), { x: (e.clientX/window.innerWidth)*100, y: (e.clientY/window.innerHeight)*100, nick: myNick, t: Date.now() });
-    });
-    onValue(ref(db, `desktopRooms/${roomId}/cursors`), snap => {
-      if (!snap.exists()) return; const data = snap.val();
-      Object.keys(remoteCursors).forEach(uid => { if (!data[uid] || Date.now() - data[uid].t > 10000) { remoteCursors[uid].el.remove(); delete remoteCursors[uid]; } });
-      Object.entries(data).forEach(([uid, curD]) => {
-        if (uid === myId || Date.now() - curD.t > 10000) return;
-        if (!remoteCursors[uid]) { const el = document.createElement('div'); el.className = 'remote-cursor'; el.innerHTML = `<svg viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><polygon points="2,2 2,16 6,12 9,18 11,17 8,11 14,11" fill="red" stroke="white" stroke-width="1"/></svg><div class="remote-cursor-label">${curD.nick}</div>`; document.getElementById('desktop').appendChild(el); remoteCursors[uid] = { el }; }
-        remoteCursors[uid].el.style.left = (curD.x/100)*window.innerWidth + 'px'; remoteCursors[uid].el.style.top = (curD.y/100)*window.innerHeight + 'px';
-      });
-    });
+  // ── INICIALIZADORES DO SISTEMA ──
+  setupCursorTracking();
+  // Inicializa o laço físico principal de renderização
+  requestAnimationFrame(physicsLoop);
+
+  // Drag funcional para as Janelas Falsas do Monitor
+  function makeWindowDraggable(winId, headerId) {
+    const win = document.getElementById(winId);
+    const header = document.getElementById(headerId);
+    let x = 0, y = 0, nx = 0, ny = 0;
+    
+    header.onmousedown = e => {
+      e.preventDefault();
+      x = e.clientX; y = e.clientY;
+      document.onmousemove = ev => {
+        ev.preventDefault();
+        nx = x - ev.clientX; ny = y - ev.clientY;
+        x = ev.clientX; y = ev.clientY;
+        win.style.top = (win.offsetTop - ny) + "px";
+        win.style.left = (win.offsetLeft - nx) + "px";
+      };
+      document.onmouseup = () => {
+        document.onmousemove = null;
+        document.onmouseup = null;
+      };
+    };
   }
+  makeWindowDraggable('paintWindow', 'paintHeader');
 
-  function setupClock() { setInterval(() => document.getElementById('taskbarTime').textContent = new Date().toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'}), 10000); }
-
-  document.getElementById('btnOpenPaint').onclick = () => { const w = document.getElementById('paintWindow'); w.style.display = w.style.display === 'block' ? 'none' : 'block'; };
-  document.getElementById('btnClosePaint').onclick = () => document.getElementById('paintWindow').style.display = 'none';
-
-  let winDragging=false, wx=0, wy=0; const win = document.getElementById('paintWindow');
-  document.getElementById('paintTitlebar').onmousedown = e => { if(e.button!==0) return; winDragging=true; wx = e.clientX - win.offsetLeft; wy = e.clientY - win.offsetTop; };
-  document.onmousemove = e => { if(winDragging) { win.style.left = (e.clientX - wx)+'px'; win.style.top = (e.clientY - wy)+'px'; } };
-  document.onmouseup = () => winDragging = false;
 </script>
 </body>
 </html>
