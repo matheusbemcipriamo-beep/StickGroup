@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stickman Desktop - Multiplayer IA</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  /* MANTENHA TODO O SEU CSS ORIGINAL AQUI ATÉ O #desktop */
+  /* ── LOBBY ── */
+  #lobbyScreen { position: fixed; inset: 0; background: #0a0a12; display: flex; flex-direction: column; align-items: center; justify-content: center; font-family: 'Courier New', monospace; color: #d3d3d3; z-index: 999; }
+  #lobbyScreen h1 { font-size: 32px; color: #ffcc00; text-transform: uppercase; letter-spacing: 4px; text-shadow: 0 0 18px #ff990066; margin-bottom: 6px; }
+  #lobbyScreen p.sub { font-size: 12px; color: #666; margin-bottom: 30px; }
+  .lobby-box { background: #141414; border: 2px solid #ff9900; box-shadow: 0 0 30px #ff990033; padding: 30px 40px; width: 380px; text-align: center; }
+  .lobby-box input { width: 100%; padding: 10px; background: #0a0a0a; border: 1px solid #444; color: #00ffff; font-family: inherit; font-size: 14px; margin-bottom: 12px; }
+  .btn-main { width: 100%; padding: 12px; background: #ff9900; color: #111; border: none; font-weight: bold; font-size: 14px; cursor: pointer; text-transform: uppercase; margin-top: 6px; }
+  .btn-main.red { background: #444; color: #ccc; margin-top: 8px; }
+  #lobbyStatus { margin-top: 16px; font-size: 12px; color: #ff9900; min-height: 18px; }
+  
+  /* ── DESKTOP & UI ── */
+  #desktop { display: none; position: fixed; inset: 0; overflow: hidden; cursor: none; }
+  #desktopBg { position: absolute; inset: 0; background: url('https://upload.wikimedia.org/wikipedia/en/8/8e/Windowsxp.png') center/cover no-repeat; }
+  #taskbar { position: absolute; bottom: 0; left: 0; right: 0; height: 36px; background: linear-gradient(to bottom, #1f5fa6, #163d72); border-top: 2px solid #3a7bd5; display: flex; align-items: center; padding: 0 8px; gap: 8px; z-index: 500; }
+  #startBtn { background: #3c8a3c; color: #fff; border: 1px solid #5ab55a; padding: 3px 12px 3px 8px; font-weight: bold; font-size: 13px; cursor: pointer; border-radius: 2px; }
+  .taskbar-btn { background: #1a5ea8; color: #fff; border: 1px solid #2d6fc0; padding: 3px 10px; font-size: 11px; cursor: pointer; }
+  
+  /* ── CURSORS & STICKMAN ── */
+  #myCursor, .remote-cursor { position: absolute; width: 20px; height: 20px; pointer-events: none; z-index: 9999; transform: translate(-2px,-2px); }
+  .remote-cursor-label { position: absolute; top: -16px; left: 18px; background: #000; color: #00ffff; font-size: 10px; padding: 1px 4px; border: 1px solid #00ffff; }
+  
+  .stickman-entity { position: absolute; pointer-events: none; z-index: 400; text-align: center; }
+  .stickman-canvas { display: block; pointer-events: all; cursor: grab; }
+  .stickman-nametag { font-family: 'Courier New', monospace; font-size: 10px; font-weight: bold; color: #00ffff; background: #111; border: 1px solid #00ffff; padding: 1px 5px; display: inline-block; margin-bottom: 2px; }
+  .stickman-hp-wrap { width: 80px; height: 7px; background: #222; border: 1px solid #555; margin: 2px auto 0; }
+  .stickman-hp-bar { height: 100%; background: #00ff66; transition: width 0.2s; }
+  .stickman-bubble { position: absolute; background: #fff; color: #000; border: 2px solid #000; border-radius: 6px; font-size: 11px; font-weight: bold; padding: 4px 8px; max-width: 180px; white-space: normal; top: -50px; left: 50%; transform: translateX(-50%); z-index: 10; animation: bubbleFade 5s forwards; }
+  @keyframes bubbleFade { 0%,80% { opacity:1; } 100% { opacity:0; } }
+
+  /* ── EFEITOS ESPECIAIS (PORTADOS DO PYTHON) ── */
+  .fx-laser { position: absolute; background: red; height: 4px; transform-origin: left center; z-index: 450; pointer-events: none; box-shadow: 0 0 8px red; }
+  .fx-fireball { position: absolute; width: 40px; height: 40px; background: radial-gradient(circle, #ffcc00, #ff3300); border-radius: 50%; z-index: 450; pointer-events: none; box-shadow: 0 0 15px #ff3300; }
+</style>
+</head>
+<body>
+
+<div id="lobbyScreen">
+  <h1>🖥️ Stickman IA Desktop</h1>
+  <div class="lobby-box">
+    <input type="text" id="inputNick" placeholder="Seu apelido" maxlength="20">
+    <input type="text" id="inputRoom" placeholder="Código da sala" maxlength="20">
+    <button class="btn-main" id="btnJoin">Entrar / Criar</button>
+  </div>
+</div>
+
+<div id="desktop">
+  <div id="desktopBg"></div>
+  <div id="myCursor"><svg viewBox="0 0 20 20"><polygon points="2,2 2,16 6,12 9,18 11,17 8,11 14,11" fill="white" stroke="black" stroke-width="1"/></svg></div>
+  <div id="taskbar"><button id="startBtn">Iniciar</button></div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getDatabase, ref, set, update, get, onValue, remove, push } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+
+// SUAS CHAVES AQUI
+const firebaseConfig = {
+  databaseURL: "https://stickland-3ccaa-default-rtdb.firebaseio.com",
+  projectId: "stickland-3ccaa",
+};
+const app = initializeApp(firebaseConfig);
+const db  = getDatabase(app);
+
+// GROQ API (Herdado do desktop_sandbox.py)
+const GROQ_API = "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";
+
+let myId = 'p_' + Math.random().toString(36).slice(2,9);
+let myNick = '', roomId = '';
+const remoteCursors = {};
+const stickmans = {};
+
+document.getElementById('btnJoin').addEventListener('click', () => {
+  myNick = document.getElementById('inputNick').value.trim();
+  roomId = document.getElementById('inputRoom').value.trim();
+  if(!myNick || !roomId) return alert("Preencha tudo!");
+  document.getElementById('lobbyScreen').style.display = 'none';
+  document.getElementById('desktop').style.display = 'block';
+  initDesktop();
+});
+
+function initDesktop() {
+  setupCursorTracking();
+  setupStickmanSync();
+  
+  // Atalho para injetar stickman clicando na tela (Substituindo o Paint para focar na IA)
+  document.getElementById('desktopBg').addEventListener('contextmenu', e => {
+    e.preventDefault();
+    const name = prompt("Nome do Stickman (Nomes como 'God', 'Dark', 'Boss' ativam poderes):");
+    if(name) injectEntity(name, e.clientX, e.clientY);
+  });
+}
+
+// ── GROQ AI INTEGRATION ──
+async function askGroq(systemPrompt, userPrompt) {
+  try {
+    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${GROQ_API}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "llama-3.1-8b-instant",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt }
+        ],
+        temperature: 0.8
+      })
+    });
+    const data = await res.json();
+    return data.choices[0].message.content.trim();
+  } catch(e) { return "Argh... conexão neural falhou."; }
+}
+
+// ── SYNC CORE ──
+function injectEntity(name, x, y) {
+  const n = name.toLowerCase();
+  const isGod = ['god','deus','boss','dark','chaos'].some(w => n.includes(w));
+  const hp = isGod ? 300 : 80;
+  
+  const payload = {
+    id: 'sm_' + Date.now(),
+    name: name, x: x, y: y,
+    creator: myNick,
+    hp: hp, maxHp: hp,
+    skills: {
+      fly: isGod,
+      laser: isGod || n.includes('laser'),
+      fireball: isGod || n.includes('fire'),
+      speed: n.includes('ninja') || n.includes('speed')
+    }
+  };
+  push(ref(db, `desktopRooms/${roomId}/items`), payload);
+}
+
+function setupStickmanSync() {
+  onValue(ref(db, `desktopRooms/${roomId}/items`), snap => {
+    if (!snap.exists()) { clearAllItems(); return; }
+    const all = snap.val();
+    const ids = Object.keys(all);
+
+    Object.keys(stickmans).forEach(id => {
+      if (!ids.includes(id)) { stickmans[id].el.remove(); delete stickmans[id]; }
+    });
+
+    ids.forEach(id => {
+      if (!stickmans[id]) createStickman(id, all[id]);
+      else updateStickmanState(id, all[id]);
+    });
+  });
+}
+
+function createStickman(fbId, data) {
+  const wrapper = document.createElement('div');
+  wrapper.className = 'stickman-entity';
+  wrapper.style.left = data.x + 'px';
+  wrapper.style.top  = data.y + 'px';
+  wrapper.innerHTML = `
+    <div class="stickman-nametag">${data.name}</div>
+    <canvas class="stickman-canvas" width="80" height="100"></canvas>
+    <div class="stickman-hp-wrap"><div class="stickman-hp-bar" style="width:100%"></div></div>
+  `;
+  
+  document.getElementById('desktop').appendChild(wrapper);
+
+  const sm = { 
+    fbId, el: wrapper, data,
+    vx: 0, vy: 0, 
+    localX: data.x, localY: data.y,
+    frame: 0
+  };
+  stickmans[fbId] = sm;
+
+  // Groq Greeting Se for o Dono
+  if (data.creator === myNick) {
+     const prompt = `Você é um stickman chamado ${data.name}. Diga uma frase minúscula de chegada baseada no seu nome (Max 5 palavras).`;
+     askGroq(prompt, "Apareça!").then(res => broadcastSpeech(fbId, res));
+  }
+
+  runPhysicsLoop(fbId);
+}
+
+function updateStickmanState(fbId, data) {
+  const sm = stickmans[fbId];
+  if(!sm) return;
+  sm.data = data;
+  sm.el.querySelector('.stickman-hp-bar').style.width = Math.max(0, (data.hp/data.maxHp)*100) + '%';
+}
+
+// ── NETWORK OWNERSHIP & FÍSICA ──
+function runPhysicsLoop(fbId) {
+  const sm = stickmans[fbId];
+  if(!sm) return;
+
+  function tick() {
+    if(!stickmans[fbId]) return; // Foi deletado
+    
+    const isOwner = (sm.data.creator === myNick);
+    const W = window.innerWidth, H = window.innerHeight - 36;
+    sm.frame++;
+
+    if (isOwner && sm.data.hp > 0) {
+      // 1. OWNER CÁLCULA IA E FÍSICA
+      if (sm.frame % 90 === 0) {
+        sm.tx = Math.random() * (W - 80);
+        sm.ty = H - 100;
+        
+        // IA de Combate Simples
+        const others = Object.values(stickmans).filter(o => o.fbId !== fbId && o.data.hp > 0);
+        if(others.length > 0 && Math.random() < 0.4) {
+           const alvo = others[Math.floor(Math.random() * others.length)];
+           sm.tx = alvo.localX;
+           
+           const dist = Math.hypot(alvo.localX - sm.localX, alvo.localY - sm.localY);
+           if(dist < 150) triggerAttack(sm, alvo);
+        }
+        if (Math.random() < 0.3 && !sm.data.skills.fly) sm.vy = -15;
+      }
+
+      // Movimentação
+      const dx = (sm.tx || sm.localX) - sm.localX;
+      sm.vx += dx > 0 ? 0.4 : -0.4;
+      sm.vx *= 0.85;
+      sm.vy += sm.data.skills.fly ? 0 : 0.6; // Gravidade
+      
+      sm.localX += sm.vx;
+      sm.localY += sm.vy;
+
+      // Colisão de Chão
+      if (sm.localY >= H - 100) { sm.localY = H - 100; sm.vy = 0; }
+      
+      // Sincroniza posição para a Matrix (Firebase) a cada 4 frames para economizar banda
+      if (sm.frame % 4 === 0) {
+        update(ref(db, `desktopRooms/${roomId}/items/${fbId}`), { x: sm.localX, y: sm.localY });
+      }
+
+    } else {
+      // 2. ESPECTADORES APENAS INTERPOLAM A POSIÇÃO DO FIREBASE (Suavização)
+      sm.localX += (sm.data.x - sm.localX) * 0.2;
+      sm.localY += (sm.data.y - sm.localY) * 0.2;
+    }
+
+    // Renderização Visual (Todos fazem localmente)
+    sm.el.style.left = sm.localX + 'px';
+    sm.el.style.top = sm.localY + 'px';
+    sm.el.style.transform = sm.vx < -0.5 ? 'scaleX(-1)' : 'scaleX(1)';
+    drawStick(sm.el.querySelector('canvas'), sm.frame);
+
+    requestAnimationFrame(tick);
+  }
+  tick();
+}
+
+// ── SISTEMA DE COMBATE & FX ──
+function triggerAttack(atk, def) {
+  if (atk.data.skills.laser && Math.random() < 0.5) {
+     createLaser(atk, def);
+     dealDamage(def, 15);
+  } else if (atk.data.skills.fireball && Math.random() < 0.5) {
+     createFireball(atk, def);
+     dealDamage(def, 25);
+  } else {
+     dealDamage(def, 5); // Soco base
+  }
+  
+  if(Math.random() < 0.2) {
+    const p = `Você é o lutador ${atk.data.name}. Você acabou de atacar o inimigo ${def.data.name}. Diga uma frase muito curta de provocação.`;
+    askGroq(p, "Ataque!").then(res => broadcastSpeech(atk.fbId, res));
+  }
+}
+
+function dealDamage(target, amount) {
+  const newHp = Math.max(0, target.data.hp - amount);
+  update(ref(db, `desktopRooms/${roomId}/items/${target.fbId}`), { hp: newHp });
+  if (newHp <= 0) setTimeout(() => remove(ref(db, `desktopRooms/${roomId}/items/${target.fbId}`)), 1500);
+}
+
+function createLaser(atk, def) {
+  const fx = document.createElement('div');
+  fx.className = 'fx-laser';
+  const dx = def.localX - atk.localX, dy = def.localY - atk.localY;
+  const dist = Math.hypot(dx, dy);
+  const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+  
+  fx.style.width = dist + 'px';
+  fx.style.left = (atk.localX + 40) + 'px';
+  fx.style.top = (atk.localY + 40) + 'px';
+  fx.style.transform = `rotate(${angle}deg)`;
+  document.getElementById('desktop').appendChild(fx);
+  setTimeout(() => fx.remove(), 200);
+}
+
+function createFireball(atk, def) {
+  const fx = document.createElement('div');
+  fx.className = 'fx-fireball';
+  fx.style.left = (atk.localX + 20) + 'px';
+  fx.style.top = (atk.localY + 20) + 'px';
+  document.getElementById('desktop').appendChild(fx);
+  
+  fx.animate([
+    { transform: `translate(0, 0)` },
+    { transform: `translate(${def.localX - atk.localX}px, ${def.localY - atk.localY}px)` }
+  ], { duration: 400, easing: 'linear' }).onfinish = () => fx.remove();
+}
+
+function broadcastSpeech(fbId, text) {
+  update(ref(db, `desktopRooms/${roomId}/items/${fbId}`), { msg: text, msgTime: Date.now() });
+}
+
+// Escutar Falas da rede
+onValue(ref(db, `desktopRooms/${roomId}/items`), snap => {
+   if(!snap.exists()) return;
+   snap.forEach(child => {
+      const data = child.val();
+      const sm = stickmans[child.key];
+      if(sm && data.msg && data.msgTime > (sm.lastMsgTime || 0)) {
+         sm.lastMsgTime = data.msgTime;
+         showBubble(sm.el, data.msg);
+      }
+   });
+});
+
+function showBubble(parent, text) {
+  const old = parent.querySelector('.stickman-bubble');
+  if (old) old.remove();
+  const b = document.createElement('div');
+  b.className = 'stickman-bubble';
+  b.textContent = text;
+  parent.appendChild(b);
+  setTimeout(() => b.remove(), 4500);
+}
+
+function drawStick(canvas, frame) {
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, 80, 100);
+  ctx.strokeStyle = '#222'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+  const bodyBob = Math.abs(Math.sin(frame * 0.2)) * 3;
+  const legOff = Math.sin(frame * 0.2) * 8;
+  const cx = 40, cy = 20 + bodyBob;
+  ctx.beginPath(); ctx.arc(cx, cy, 10, 0, Math.PI*2); ctx.stroke(); // Cabeça
+  ctx.beginPath(); ctx.moveTo(cx, cy+10); ctx.lineTo(cx, cy+40); ctx.stroke(); // Corpo
+  ctx.beginPath(); ctx.moveTo(cx-18, cy+20); ctx.lineTo(cx, cy+20); ctx.lineTo(cx+18, cy+20); ctx.stroke(); // Braços
+  ctx.beginPath(); ctx.moveTo(cx, cy+40); ctx.lineTo(cx-15, cy+65+legOff); ctx.stroke(); // Perna 1
+  ctx.beginPath(); ctx.moveTo(cx, cy+40); ctx.lineTo(cx+15, cy+65-legOff); ctx.stroke(); // Perna 2
+}
+
+function setupCursorTracking() {
+  const cur = document.getElementById('myCursor');
+  document.getElementById('desktop').addEventListener('mousemove', e => {
+    cur.style.left = e.clientX + 'px';
+    cur.style.top  = e.clientY + 'px';
+    if(myId) update(ref(db, `desktopRooms/${roomId}/cursors/${myId}`), { x: e.clientX, y: e.clientY, nick: myNick, t: Date.now() });
+  });
+
+  onValue(ref(db, `desktopRooms/${roomId}/cursors`), snap => {
+    if(!snap.exists()) return;
+    const data = snap.val();
+    Object.keys(remoteCursors).forEach(uid => { if(!data[uid]) { remoteCursors[uid].el.remove(); delete remoteCursors[uid]; } });
+    Object.entries(data).forEach(([uid, curData]) => {
+      if(uid === myId || Date.now() - curData.t > 10000) return;
+      if(!remoteCursors[uid]) {
+        const el = document.createElement('div');
+        el.className = 'remote-cursor';
+        el.innerHTML = `<svg viewBox="0 0 20 20"><polygon points="2,2 2,16 6,12 9,18 11,17 8,11 14,11" fill="red" stroke="white" stroke-width="1"/></svg><div class="remote-cursor-label">${curData.nick}</div>`;
+        document.getElementById('desktop').appendChild(el);
+        remoteCursors[uid] = { el };
+      }
+      remoteCursors[uid].el.style.left = curData.x + 'px';
+      remoteCursors[uid].el.style.top  = curData.y + 'px';
+    });
+  });
+}
+</script>
+</body>
+</html>
