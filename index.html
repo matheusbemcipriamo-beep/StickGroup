@@ -177,13 +177,16 @@
     font-family: 'Arial', sans-serif;
     font-size: 11px; font-weight: bold;
     padding: 4px 8px;
-    max-width: 180px; white-space: normal;
+    max-width: 180px;
+    width: max-content;
+    white-space: normal;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
     bottom: calc(100% + 4px);
     left: 50%; transform: translateX(-50%);
     z-index: 10;
     pointer-events: none;
     animation: bubbleFade 4.5s forwards;
-    white-space: nowrap;
   }
   @keyframes bubbleFade {
     0%,75% { opacity:1; } 100% { opacity:0; }
@@ -980,6 +983,7 @@ function createStickman(fbKey, data) {
     el: wrapper, hpBar, tag, sCnv, fxSvg,
     vx: 0, vy: 0,
     tx: data.x, ty: data.y,
+    remoteX: data.x, remoteY: data.y,
     frame: Math.floor(Math.random()*100),
     dragging: false,
     readyImg: null,
@@ -1016,13 +1020,14 @@ function syncStickman(fbKey, item) {
   sm.data = {...sm.data, ...item};
   if (item.hp <= 0) { removeStickmanEl(fbKey); return; }
   if (!sm.dragging) {
-    const isCreatorHere = item.creator === myNick;
-    if (isCreatorHere) {
+    const isOwner = item.creator === myNick;
+    if (isOwner) {
       // Este cliente é o "dono" deste stickman: o loop de física já move
-      // sm.el via vx/vy/tx/ty. Apenas reconciliamos se houver um desvio
-      // grande (ex: o stickman foi arrastado em outro cliente), para não
-      // ficar "puxando" a posição a cada sync e causar o efeito de
-      // "voltar igual besta".
+      // sm.el via vx/vy/tx/ty a cada frame. O valor de x/y que chega do
+      // Firebase é só um eco da própria posição reportada ~a cada 40
+      // frames, então só corrigimos se houver um desvio grande (ex: o
+      // stickman foi arrastado em outro cliente) para não competir com a
+      // própria física e causar tremor/"voltar".
       const curX = parseFloat(sm.el.style.left) || sm.data.x;
       const curY = parseFloat(sm.el.style.top)  || sm.data.y;
       if (Math.abs(curX - item.x) > 60 || Math.abs(curY - item.y) > 60) {
@@ -1031,13 +1036,13 @@ function syncStickman(fbKey, item) {
         sm.tx = item.x; sm.ty = item.y;
       }
     } else {
-      // Para os demais clientes, o stickman não toma decisões locais:
-      // atualizamos o alvo (tx/ty) com a posição autoritativa vinda do
-      // criador, e deixamos o physicsLoop interpolar suavemente até lá,
-      // em vez de "snapar" direto no left/top (o que causava o efeito de
-      // teleporte/voltar a cada atualização do Firebase).
-      sm.tx = item.x;
-      sm.ty = item.y;
+      // Para os demais clientes, o stickman é apenas uma réplica visual:
+      // guardamos a posição autoritativa em remoteX/remoteY e o
+      // physicsLoop interpola (lerp) suavemente até lá, sem rodar
+      // gravidade/IA local (que ficaria desincronizada e brigando com a
+      // posição recebida, causando o efeito de "voltar"/tremer).
+      sm.remoteX = item.x;
+      sm.remoteY = item.y;
     }
   }
   sm.hpBar.style.width = ((item.hp/item.maxHp)*100)+'%';
@@ -1423,6 +1428,41 @@ function physicsLoop() {
 
   Object.values(stickmans).forEach(sm => {
     if (sm.dragging || sm.data.hp<=0) return;
+    const isOwner = sm.data.creator===myNick;
+
+    if (!isOwner) {
+      // ── Réplica visual: apenas interpola suavemente até a posição
+      // autoritativa recebida do dono (sm.remoteX/remoteY). Sem
+      // gravidade/IA local, para não brigar com a posição recebida.
+      const curX=parseFloat(sm.el.style.left)||sm.data.x;
+      const curY=parseFloat(sm.el.style.top)||sm.data.y;
+      const tx = (sm.remoteX!=null) ? sm.remoteX : sm.data.x;
+      const ty = (sm.remoteY!=null) ? sm.remoteY : sm.data.y;
+      const dx = tx-curX, dy = ty-curY;
+      // lerp: anda uma fração da distância a cada frame
+      const nx = Math.abs(dx)>0.5 ? curX+dx*0.18 : tx;
+      const ny = Math.abs(dy)>0.5 ? curY+dy*0.18 : ty;
+      sm.el.style.left = nx+'px';
+      sm.el.style.top  = ny+'px';
+      sm.frame++;
+
+      const sCtx=sm.sCnv.getContext('2d');
+      sCtx.clearRect(0,0,sm.data.w,sm.data.h);
+      if (sm.readyImg) {
+        const bob=Math.sin(sm.frame*0.15)*2;
+        sCtx.drawImage(sm.readyImg,0,bob,sm.data.w,sm.data.h-bob);
+        if (sm.weaponImg) {
+          sCtx.save();
+          sCtx.drawImage(sm.weaponImg,sm.data.w-36,sm.data.h-36,32,32);
+          sCtx.restore();
+        }
+      }
+      if (dx<-0.5)      sm.sCnv.style.transform='scaleX(-1)';
+      else if (dx>0.5)  sm.sCnv.style.transform='scaleX(1)';
+      return;
+    }
+
+    // ── Dono: simulação completa de física ──
     const speedFactor=sm.data.skills?.speed ? 2.8 : 1.0;
     const isFlyer=sm.data.skills?.fly;
 
@@ -1497,7 +1537,56 @@ function physicsLoop() {
     else if (sm.vx>0.3)  sm.sCnv.style.transform='scaleX(1)';
   });
 
+  // ── Física de objetos físicos (gravidade) ──
+  physicsStaticItems(dw, dh);
+
   requestAnimationFrame(physicsLoop);
+}
+
+// ══════════════════ FÍSICA DE OBJETOS ESTÁTICOS ═════════════
+// Itens do tipo "object" (lançados pelo Paint) caem por gravidade até
+// encontrarem o chão ou o topo de uma barreira. Armas e barreiras
+// continuam fixas onde foram colocadas.
+function physicsStaticItems(dw, dh) {
+  const barreirasEls=Object.values(staticItems).filter(b=>b.data?.action==='barrier');
+  Object.values(staticItems).forEach(it => {
+    if (it.data?.action!=='object') return;
+    if (it.data?.creator!==myNick) return; // só o criador simula a queda; os outros recebem y via sync
+    if (it.dragging) { it.vy=0; return; }
+    if (it.vy==null) it.vy=0;
+
+    const curX=parseFloat(it.el.style.left)||it.data.x;
+    const curY=parseFloat(it.el.style.top)||it.data.y;
+    const w=it.data.w||60, h=it.data.h||60;
+
+    it.vy += GRAVITY;
+    let ny = curY+it.vy;
+
+    let floor = dh-h;
+    barreirasEls.forEach(b => {
+      const bx=parseFloat(b.el.style.left)||b.data.x;
+      const by=parseFloat(b.el.style.top)||b.data.y;
+      const bw=b.data.w||80, bh=b.data.h||20;
+      const cx=curX+w/2;
+      if (cx>bx && cx<bx+bw) {
+        const bTop=by-h;
+        if (ny+h>=by && curY+h<=by+bh) { floor=Math.min(floor,bTop); }
+      }
+    });
+
+    if (ny>=floor) { ny=floor; it.vy=0; }
+    if (ny===curY) return; // sem mudança, evita writes/redraws desnecessários
+
+    it.el.style.top = ny+'px';
+    it.data.y = ny;
+
+    // Sincroniza posição final no DB só quando o objeto assenta (vy===0)
+    // e periodicamente enquanto cai, para os outros clientes acompanharem.
+    if (it.vy===0 || (it.frameY=((it.frameY||0)+1))%20===0) {
+      update(ref(db,`desktopRooms/${roomId}/items/${it.fbKey || ''}`),{ y: ny }).catch(()=>{});
+    }
+  });
+}
 }
 
 // ══════════════════ ITENS ESTÁTICOS ════════════════════════
@@ -1518,7 +1607,7 @@ function createStaticItem(fbKey, item) {
   }
   makeDraggableItem(el, fbKey);
   document.getElementById('desktop').appendChild(el);
-  staticItems[fbKey]={ el, data:item, dragging:false };
+  staticItems[fbKey]={ el, data:item, dragging:false, fbKey, vy:0 };
 }
 
 function makeDraggableItem(el, fbKey) {
