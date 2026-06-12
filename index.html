@@ -121,9 +121,10 @@
     top: 0; left: 0;
   }
   .remote-cursor {
-    position: absolute; pointer-events: none;
+    position: fixed; pointer-events: none;
     z-index: 9998;
     transform: translate(-2px,-2px);
+    transition: left 0.08s linear, top 0.08s linear;
   }
   .remote-cursor-label {
     position: absolute;
@@ -230,7 +231,7 @@
   #paintWindow {
     position: absolute;
     top: 60px; left: 60px;
-    width: 560px;
+    width: 620px;
     background: #ece9d8;
     border: 2px solid #0054a0;
     box-shadow: 4px 4px 12px rgba(0,0,0,0.5);
@@ -413,18 +414,27 @@
       <div class="color-swatch" style="background:#a0f" data-color="purple"></div>
       <div class="color-swatch" style="background:#0ff" data-color="cyan"></div>
       <div class="color-swatch" style="background:#ff0" data-color="yellow"></div>
+      <div class="color-swatch" style="background:#fff;border:2px solid #aaa" data-color="white"></div>
+      <div class="color-swatch" style="background:#ff69b4" data-color="#ff69b4"></div>
+      <div class="color-swatch" style="background:#8B4513" data-color="#8B4513"></div>
+      <div class="color-swatch" style="background:#888" data-color="#888888"></div>
       <span class="pt-label" style="margin-left:6px">Forma:</span>
       <button class="pt-btn active" data-tool="pencil">✏️ Livre</button>
       <button class="pt-btn" data-tool="rect">⬜ Retâng.</button>
       <button class="pt-btn" data-tool="oval">⭕ Círc.</button>
       <button class="pt-btn" data-tool="line">╱ Linha</button>
+      <button class="pt-btn" data-tool="eraser">⬜ Borracha</button>
+      <button class="pt-btn" data-tool="spray">💨 Spray</button>
+      <button class="pt-btn" data-tool="fill">🪣 Balde</button>
       <span class="pt-label" style="margin-left:6px">Pincel:</span>
       <button class="pt-btn" data-size="2">Fino</button>
       <button class="pt-btn active" data-size="6">Médio</button>
       <button class="pt-btn" data-size="14">Grosso</button>
+      <button class="pt-btn" data-size="24">GG</button>
+      <button class="pt-btn" data-size="40">XG</button>
       <button class="pt-btn" style="margin-left:10px;background:#fcc;" id="btnClearPaint">🗑 Limpar</button>
     </div>
-    <canvas id="paintCanvas" width="556" height="380"></canvas>
+    <canvas id="paintCanvas" width="616" height="380"></canvas>
     <div id="paintStatusBar">
       <span>Clique direito no Canvas para injetar</span>
       <span id="paintCoords">x:0, y:0</span>
@@ -436,6 +446,7 @@
     <div class="inject-item" data-action="stickman">✨ Injetar como Stickman Vivo</div>
     <div class="inject-item" data-action="weapon">⚔️ Equipar como Arma Física</div>
     <div class="inject-item" data-action="barrier">🧱 Fixar como Barreira Sólida</div>
+    <div class="inject-item" data-action="object">🎯 Lançar como Objeto Físico</div>
   </div>
 
   <!-- Name Prompt -->
@@ -585,23 +596,29 @@ function setupCursorTracking() {
 function setupRemoteCursors() {
   onValue(ref(db, `desktopRooms/${roomId}/cursors`), snap => {
     const data = snap.val() || {};
+    // Remove cursores que sumiram do DB
     Object.keys(remoteCursors).forEach(uid => {
       if (!data[uid]) { remoteCursors[uid].el.remove(); delete remoteCursors[uid]; }
     });
     Object.entries(data).forEach(([uid, cur]) => {
-      if (uid===myId) return;
-      if (Date.now()-cur.t > 12000) return;
-      const x = (cur.x/100)*window.innerWidth;
-      const y = (cur.y/100)*window.innerHeight;
+      if (uid === myId) return;
+      // Ignorar apenas se muito antigo (30s)
+      if (Date.now() - cur.t > 30000) {
+        if (remoteCursors[uid]) { remoteCursors[uid].el.remove(); delete remoteCursors[uid]; }
+        return;
+      }
+      const x = (cur.x / 100) * window.innerWidth;
+      const y = (cur.y / 100) * window.innerHeight;
       if (!remoteCursors[uid]) {
         const el = document.createElement('div');
         el.className = 'remote-cursor';
-        el.innerHTML = `<svg viewBox="0 0 20 20" width="20" height="20" xmlns="http://www.w3.org/2000/svg"><polygon points="2,2 2,16 6,12 9,18 11,17 8,11 14,11" fill="white" stroke="black" stroke-width="1.2"/></svg><div class="remote-cursor-label">${cur.nick}</div>`;
-        document.getElementById('desktop').appendChild(el);
+        // Usar position:fixed diretamente no elemento, fora do #desktop
+        el.innerHTML = `<svg viewBox="0 0 20 20" width="20" height="20" xmlns="http://www.w3.org/2000/svg"><polygon points="2,2 2,16 6,12 9,18 11,17 8,11 14,11" fill="#00ffcc" stroke="black" stroke-width="1.2"/></svg><div class="remote-cursor-label">${cur.nick}</div>`;
+        document.body.appendChild(el);
         remoteCursors[uid] = { el };
       }
-      remoteCursors[uid].el.style.left = x+'px';
-      remoteCursors[uid].el.style.top  = y+'px';
+      remoteCursors[uid].el.style.left = x + 'px';
+      remoteCursors[uid].el.style.top  = y + 'px';
     });
   });
 }
@@ -697,20 +714,83 @@ document.getElementById('btnClearPaint').addEventListener('click', () => pctx.cl
 
 const cnvPos = (e,c) => { const r=c.getBoundingClientRect(); return {x:e.clientX-r.left, y:e.clientY-r.top}; };
 
+// ── Flood Fill ──
+function floodFill(x, y, fillColor) {
+  x = Math.floor(x); y = Math.floor(y);
+  const imgData = pctx.getImageData(0, 0, cnv.width, cnv.height);
+  const data = imgData.data;
+  const w = cnv.width, h = cnv.height;
+  const idx = (px, py) => (py * w + px) * 4;
+  const startIdx = idx(x, y);
+  const sr = data[startIdx], sg = data[startIdx+1], sb = data[startIdx+2], sa = data[startIdx+3];
+
+  // Parse fill color
+  const tmp = document.createElement('canvas'); tmp.width=tmp.height=1;
+  const tc = tmp.getContext('2d'); tc.fillStyle = fillColor; tc.fillRect(0,0,1,1);
+  const fd = tc.getImageData(0,0,1,1).data;
+  const fr=fd[0], fg=fd[1], fb=fd[2], fa=255;
+
+  if (sr===fr && sg===fg && sb===fb && sa===fa) return;
+
+  const similar = i => Math.abs(data[i]-sr)+Math.abs(data[i+1]-sg)+Math.abs(data[i+2]-sb)+Math.abs(data[i+3]-sa) < 100;
+  const stack = [[x, y]];
+  const visited = new Uint8Array(w * h);
+  while (stack.length) {
+    const [cx, cy] = stack.pop();
+    if (cx<0||cy<0||cx>=w||cy>=h) continue;
+    const i = cy*w+cx;
+    if (visited[i]) continue;
+    const pi = i*4;
+    if (!similar(pi)) continue;
+    visited[i] = 1;
+    data[pi]=fr; data[pi+1]=fg; data[pi+2]=fb; data[pi+3]=fa;
+    stack.push([cx+1,cy],[cx-1,cy],[cx,cy+1],[cx,cy-1]);
+  }
+  pctx.putImageData(imgData, 0, 0);
+}
+
+// ── Spray ──
+function doSpray(x, y) {
+  const density = Math.max(10, paintState.size * 5);
+  const radius  = Math.max(12, paintState.size * 4);
+  pctx.fillStyle = paintState.color;
+  for (let i=0; i<density; i++) {
+    const dx = (Math.random()*2-1)*radius;
+    const dy = (Math.random()*2-1)*radius;
+    if (dx*dx+dy*dy <= radius*radius) {
+      pctx.beginPath();
+      pctx.arc(x+dx, y+dy, 1, 0, Math.PI*2);
+      pctx.fill();
+    }
+  }
+}
+
 cnv.addEventListener('mousedown', e => {
   if (e.button!==0) return;
-  paintState.drawing=true;
   const {x,y}=cnvPos(e,cnv);
+  if (paintState.tool==='fill') { floodFill(x, y, paintState.color); return; }
+  paintState.drawing=true;
   paintState.sx=x; paintState.sy=y;
   pctx.strokeStyle=paintState.color; pctx.lineWidth=paintState.size; pctx.lineCap='round';
   pctx.beginPath(); pctx.moveTo(x,y);
+  if (paintState.tool==='spray') doSpray(x, y);
 });
 cnv.addEventListener('mousemove', e => {
   const {x,y}=cnvPos(e,cnv);
   document.getElementById('paintCoords').textContent=`x:${x|0}, y:${y|0}`;
   if (!paintState.drawing) return;
-  if (paintState.tool==='pencil') { pctx.lineTo(x,y); pctx.stroke(); }
-  else {
+  if (paintState.tool==='pencil') {
+    pctx.lineTo(x,y); pctx.stroke();
+  } else if (paintState.tool==='eraser') {
+    const r = paintState.size * 2;
+    pctx.save();
+    pctx.globalCompositeOperation='destination-out';
+    pctx.beginPath(); pctx.arc(x, y, r, 0, Math.PI*2);
+    pctx.fill();
+    pctx.restore();
+  } else if (paintState.tool==='spray') {
+    doSpray(x, y);
+  } else {
     if (!shapeSnapshot) shapeSnapshot=pctx.getImageData(0,0,cnv.width,cnv.height);
     pctx.putImageData(shapeSnapshot,0,0);
     pctx.strokeStyle=paintState.color; pctx.lineWidth=paintState.size;
@@ -721,7 +801,7 @@ cnv.addEventListener('mouseup', e => {
   if (!paintState.drawing) return;
   paintState.drawing=false;
   const {x,y}=cnvPos(e,cnv);
-  if (paintState.tool!=='pencil') {
+  if (paintState.tool!=='pencil' && paintState.tool!=='eraser' && paintState.tool!=='spray' && paintState.tool!=='fill') {
     shapeSnapshot=null;
     pctx.strokeStyle=paintState.color; pctx.lineWidth=paintState.size;
     pctx.beginPath(); drawShape(pctx,paintState.tool,paintState.sx,paintState.sy,x,y); pctx.stroke();
@@ -925,12 +1005,15 @@ function createStickman(fbKey, data) {
 function syncStickman(fbKey, item) {
   const sm = stickmans[fbKey];
   if (!sm) return;
-  const wasCreator = sm.data.creator===myNick;
+  const isOwner = sm.data.creator === myNick;
   sm.data = {...sm.data, ...item};
   if (item.hp <= 0) { removeStickmanEl(fbKey); return; }
-  if (!sm.dragging) {
-    sm.el.style.left = item.x+'px';
-    sm.el.style.top  = item.y+'px';
+  // Só move pelo DB se NÃO somos o dono (dono controla localmente via physicsLoop)
+  if (!sm.dragging && !isOwner) {
+    sm.el.style.left = item.x + 'px';
+    sm.el.style.top  = item.y + 'px';
+    sm.tx = item.x;
+    sm.ty = item.y;
   }
   sm.hpBar.style.width = ((item.hp/item.maxHp)*100)+'%';
   sm.hpBar.style.background = hpBarColor(item.alignment);
@@ -1286,13 +1369,14 @@ function startBrain(fbKey) {
         }
       }
     } else if (!gritaFobia) {
-      // Idle / walk
-      const action=['walk','walk','jump','idle'][Math.floor(Math.random()*4)];
-      if (action==='walk') {
-        s.tx=Math.random()*(window.innerWidth-s.data.w);
-        s.ty=FLOOR_Y()-s.data.h;
-      } else if (action==='jump' && Math.abs(s.vy)<1) {
-        s.vy=-13-Math.random()*5;
+      // Idle / walk — só muda target se chegou perto o suficiente do atual
+      const distToTarget = Math.hypot(cx - (s.tx + s.data.w/2), cy - (s.ty + s.data.h/2));
+      const action = ['walk','walk','jump','idle','idle'][Math.floor(Math.random()*5)];
+      if (action==='walk' && distToTarget < 80) {
+        s.tx = 60 + Math.random()*(window.innerWidth - s.data.w - 120);
+        s.ty = FLOOR_Y() - s.data.h;
+      } else if (action==='jump' && Math.abs(s.vy)<1 && distToTarget < 80) {
+        s.vy = -13 - Math.random()*5;
       }
     }
 
@@ -1323,7 +1407,12 @@ function physicsLoop() {
     const curY=parseFloat(sm.el.style.top)||sm.data.y;
 
     const dxTarget=(sm.tx-curX), dyTarget=(sm.ty-curY);
-    sm.vx += Math.sign(dxTarget)*0.75*speedFactor;
+    // Dead-zone: se está muito perto horizontalmente, não aplica mais força
+    if (Math.abs(dxTarget) > 8) {
+      sm.vx += Math.sign(dxTarget)*0.75*speedFactor;
+    } else {
+      sm.vx *= 0.6; // freia mais rápido
+    }
     sm.vx *= FRICTION;
 
     // ── Gravidade ──
