@@ -413,11 +413,16 @@
       <div class="color-swatch" style="background:#a0f" data-color="purple"></div>
       <div class="color-swatch" style="background:#0ff" data-color="cyan"></div>
       <div class="color-swatch" style="background:#ff0" data-color="yellow"></div>
+      <input type="color" id="paintCustomColor" value="#000000" title="Cor personalizada"
+             style="width:22px;height:22px;padding:0;border:2px solid #888;cursor:pointer;background:none;">
       <span class="pt-label" style="margin-left:6px">Forma:</span>
       <button class="pt-btn active" data-tool="pencil">✏️ Livre</button>
       <button class="pt-btn" data-tool="rect">⬜ Retâng.</button>
       <button class="pt-btn" data-tool="oval">⭕ Círc.</button>
       <button class="pt-btn" data-tool="line">╱ Linha</button>
+      <button class="pt-btn" data-tool="spray">💨 Spray</button>
+      <button class="pt-btn" data-tool="eraser">🧽 Borracha</button>
+      <button class="pt-btn" data-tool="fill">🪣 Balde</button>
       <span class="pt-label" style="margin-left:6px">Pincel:</span>
       <button class="pt-btn" data-size="2">Fino</button>
       <button class="pt-btn active" data-size="6">Médio</button>
@@ -436,6 +441,7 @@
     <div class="inject-item" data-action="stickman">✨ Injetar como Stickman Vivo</div>
     <div class="inject-item" data-action="weapon">⚔️ Equipar como Arma Física</div>
     <div class="inject-item" data-action="barrier">🧱 Fixar como Barreira Sólida</div>
+    <div class="inject-item" data-action="object">📦 Lançar como Objeto Físico</div>
   </div>
 
   <!-- Name Prompt -->
@@ -682,6 +688,10 @@ document.querySelectorAll('.color-swatch').forEach(sw => {
     paintState.color = sw.dataset.color;
   });
 });
+document.getElementById('paintCustomColor').addEventListener('input', e => {
+  document.querySelectorAll('.color-swatch').forEach(s=>s.classList.remove('active'));
+  paintState.color = e.target.value;
+});
 document.querySelectorAll('.pt-btn[data-tool]').forEach(b => {
   b.addEventListener('click', () => {
     document.querySelectorAll('.pt-btn[data-tool]').forEach(x=>x.classList.remove('active'));
@@ -702,18 +712,30 @@ const cnvPos = (e,c) => { const r=c.getBoundingClientRect(); return {x:e.clientX
 
 cnv.addEventListener('mousedown', e => {
   if (e.button!==0) return;
-  paintState.drawing=true;
   const {x,y}=cnvPos(e,cnv);
+  if (paintState.tool==='fill') {
+    floodFill(pctx, cnv, x|0, y|0, paintState.color);
+    return;
+  }
+  paintState.drawing=true;
   paintState.sx=x; paintState.sy=y;
-  pctx.strokeStyle=paintState.color; pctx.lineWidth=paintState.size; pctx.lineCap='round';
-  pctx.beginPath(); pctx.moveTo(x,y);
+  if (paintState.tool==='eraser') {
+    eraseAt(pctx, x, y, paintState.size*2);
+  } else if (paintState.tool==='spray') {
+    sprayAt(pctx, x, y, paintState.color, paintState.size);
+  } else {
+    pctx.strokeStyle=paintState.color; pctx.lineWidth=paintState.size; pctx.lineCap='round';
+    pctx.beginPath(); pctx.moveTo(x,y);
+  }
 });
 cnv.addEventListener('mousemove', e => {
   const {x,y}=cnvPos(e,cnv);
   document.getElementById('paintCoords').textContent=`x:${x|0}, y:${y|0}`;
   if (!paintState.drawing) return;
   if (paintState.tool==='pencil') { pctx.lineTo(x,y); pctx.stroke(); }
-  else {
+  else if (paintState.tool==='eraser') { eraseAt(pctx, x, y, paintState.size*2); }
+  else if (paintState.tool==='spray') { sprayAt(pctx, x, y, paintState.color, paintState.size); }
+  else if (paintState.tool!=='fill') {
     if (!shapeSnapshot) shapeSnapshot=pctx.getImageData(0,0,cnv.width,cnv.height);
     pctx.putImageData(shapeSnapshot,0,0);
     pctx.strokeStyle=paintState.color; pctx.lineWidth=paintState.size;
@@ -724,7 +746,7 @@ cnv.addEventListener('mouseup', e => {
   if (!paintState.drawing) return;
   paintState.drawing=false;
   const {x,y}=cnvPos(e,cnv);
-  if (paintState.tool!=='pencil') {
+  if (paintState.tool!=='pencil' && paintState.tool!=='eraser' && paintState.tool!=='spray' && paintState.tool!=='fill') {
     shapeSnapshot=null;
     pctx.strokeStyle=paintState.color; pctx.lineWidth=paintState.size;
     pctx.beginPath(); drawShape(pctx,paintState.tool,paintState.sx,paintState.sy,x,y); pctx.stroke();
@@ -746,6 +768,69 @@ function drawShape(c,tool,sx,sy,ex,ey) {
     const rx=Math.abs(ex-sx)/2, ry=Math.abs(ey-sy)/2;
     c.ellipse(sx+(ex-sx)/2, sy+(ey-sy)/2, rx||1, ry||1, 0,0,Math.PI*2);
   } else if (tool==='line') { c.moveTo(sx,sy); c.lineTo(ex,ey); }
+}
+
+// ── Borracha: apaga (torna transparente) uma área circular ──
+function eraseAt(c, x, y, radius) {
+  c.save();
+  c.globalCompositeOperation = 'destination-out';
+  c.beginPath();
+  c.arc(x, y, radius, 0, Math.PI*2);
+  c.fill();
+  c.restore();
+}
+
+// ── Spray: espalha pontos aleatórios numa área circular ──
+function sprayAt(c, x, y, color, size) {
+  const density = Math.max(10, size*5);
+  const radius  = Math.max(12, size*4);
+  c.save();
+  c.fillStyle = color;
+  for (let i=0; i<density; i++) {
+    const dx = (Math.random()*2-1)*radius;
+    const dy = (Math.random()*2-1)*radius;
+    if (dx*dx + dy*dy <= radius*radius) {
+      c.fillRect(x+dx, y+dy, 1.5, 1.5);
+    }
+  }
+  c.restore();
+}
+
+// ── Balde (flood fill) com tolerância de cor ──
+function floodFill(c, canvasEl, startX, startY, fillColorStr, tolerance=24) {
+  const w = canvasEl.width, h = canvasEl.height;
+  if (startX<0 || startY<0 || startX>=w || startY>=h) return;
+  const imgData = c.getImageData(0,0,w,h);
+  const data = imgData.data;
+
+  // Resolve a cor de preenchimento para RGBA usando um canvas auxiliar 1x1
+  const probe = document.createElement('canvas').getContext('2d');
+  probe.fillStyle = fillColorStr;
+  probe.fillRect(0,0,1,1);
+  const [fr,fg,fb,fa] = probe.getImageData(0,0,1,1).data;
+
+  const idx = (px,py) => (py*w+px)*4;
+  const start = idx(startX,startY);
+  const tr=data[start], tg=data[start+1], tb=data[start+2], ta=data[start+3];
+
+  if (tr===fr && tg===fg && tb===fb && ta===fa) return; // já é a cor
+
+  const similar = (i) => (Math.abs(data[i]-tr)+Math.abs(data[i+1]-tg)+Math.abs(data[i+2]-tb)+Math.abs(data[i+3]-ta)) < tolerance*4;
+
+  const stack = [[startX,startY]];
+  const visited = new Uint8Array(w*h);
+  while (stack.length) {
+    const [px,py] = stack.pop();
+    if (px<0||py<0||px>=w||py>=h) continue;
+    const vIdx = py*w+px;
+    if (visited[vIdx]) continue;
+    const i = idx(px,py);
+    if (!similar(i)) continue;
+    visited[vIdx]=1;
+    data[i]=fr; data[i+1]=fg; data[i+2]=fb; data[i+3]=fa;
+    stack.push([px+1,py],[px-1,py],[px,py+1],[px,py-1]);
+  }
+  c.putImageData(imgData,0,0);
 }
 
 // ── Injeção ──
@@ -1425,8 +1510,11 @@ function createStaticItem(fbKey, item) {
     img.style.cssText='max-width:100%;max-height:100%;object-fit:contain;pointer-events:none;';
     el.appendChild(img);
   } else {
-    el.style.border=`2px dashed ${item.action==='barrier'?'#555':'#f30'}`;
-    el.style.fontSize='28px'; el.textContent=item.action==='barrier'?'🧱':'⚔️';
+    const isBarrier = item.action==='barrier';
+    const isObject  = item.action==='object';
+    el.style.border = `2px dashed ${isBarrier ? '#555' : (isObject ? '#0a8' : '#f30')}`;
+    el.style.fontSize = '28px';
+    el.textContent = isBarrier ? '🧱' : (isObject ? '📦' : '⚔️');
   }
   makeDraggableItem(el, fbKey);
   document.getElementById('desktop').appendChild(el);
