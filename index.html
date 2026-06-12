@@ -1035,7 +1035,8 @@ function syncStickman(fbKey, item) {
       sm.remoteX = item.x;
       sm.remoteY = item.y;
     }
-    // Se for o dono, não mexe no remoteX/remoteY! O dono é a autoridade máxima local.
+    // Se for o dono, não mexe no remoteX/remoteY! 
+    // O dono é a autoridade máxima local.
   }
   sm.hpBar.style.width = ((item.hp/item.maxHp)*100)+'%';
   sm.hpBar.style.background = hpBarColor(item.alignment);
@@ -1518,7 +1519,8 @@ function physicsLoop() {
 
 // ══════════════════ FÍSICA DE OBJETOS ESTÁTICOS ═════════════
 // Itens do tipo "object" (lançados pelo Paint) caem por gravidade até
-// encontrarem o chão ou o topo de uma barreira. Armas e barreiras
+// encontrarem o chão ou o topo de uma barreira. 
+// Armas e barreiras
 // continuam fixas onde foram colocadas.
 function physicsStaticItems(dw, dh) {
   const barreirasEls=Object.values(staticItems).filter(b=>b.data?.action==='barrier');
